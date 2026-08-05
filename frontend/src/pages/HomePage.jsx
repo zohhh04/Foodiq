@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -224,6 +224,7 @@ function Typewriter({ phrases }) {
 
 function HomePage() {
   const { user, isFavorite, toggleFavorite } = useAuth();
+  const navigate = useNavigate();
   const [health, setHealth] = useState(null);
   const [queue, setQueue] = useState([]);
   const [popular, setPopular] = useState([]);
@@ -249,7 +250,10 @@ function HomePage() {
   }, []);
 
   const addToCart = async (item) => {
-    if (!user) return;
+    if (!user) {
+      navigate('/login');
+      return;
+    }
     try {
       await api.post('/cart', { foodItemId: item._id, qty: 1 });
       setAddedId(item._id);
@@ -446,6 +450,13 @@ function HomePage() {
           {popular.map((item, idx) => (
             <Reveal key={item._id} delay={idx * 70}>
               <div className="menu-card">
+                <div className="menu-card-img">
+                  {item.image ? (
+                    <img src={item.image} alt={item.name} loading="lazy" />
+                  ) : (
+                    <span className="menu-card-img-fallback">{item.name.charAt(0)}</span>
+                  )}
+                </div>
                 <div className="menu-card-body">
                   <div className="menu-card-top">
                     <h3>{item.name}</h3>
@@ -469,14 +480,17 @@ function HomePage() {
                     </span>
                     <span>{item.prepTimeMin} min</span>
                   </div>
-                  {user && item.inStock && (
-                    <button
-                      className={`add-to-cart ${addedId === item._id ? 'added' : ''}`}
-                      onClick={() => addToCart(item)}
-                    >
-                      {addedId === item._id ? 'Added ✓' : 'Add to Cart'}
-                    </button>
-                  )}
+                  <button
+                    className={`add-to-cart ${addedId === item._id ? 'added' : ''}`}
+                    onClick={() => addToCart(item)}
+                    disabled={!item.inStock}
+                  >
+                    {!item.inStock
+                      ? 'Out of stock'
+                      : addedId === item._id
+                        ? 'Added ✓'
+                        : 'Add to Cart'}
+                  </button>
                 </div>
               </div>
             </Reveal>

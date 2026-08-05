@@ -83,6 +83,13 @@ function MenuPage() {
         <div className="catalog-grid">
           {items.map((item) => (
             <div key={item._id} className="menu-card">
+              <div className="menu-card-img">
+                {item.image ? (
+                  <img src={item.image} alt={item.name} loading="lazy" />
+                ) : (
+                  <span className="menu-card-img-fallback">{item.name.charAt(0)}</span>
+                )}
+              </div>
               <div className="menu-card-body">
                 <div className="menu-card-top">
                   <h3>{item.name}</h3>
@@ -117,14 +124,17 @@ function MenuPage() {
                     {item.inStock ? 'In stock' : 'Out of stock'}
                   </span>
                 </div>
-                {user && item.inStock && (
-                  <button
-                    className={`add-to-cart ${addedId === item._id ? 'added' : ''}`}
-                    onClick={() => addToCart(item)}
-                  >
-                    {addedId === item._id ? 'Added ✓' : 'Add to Cart'}
-                  </button>
-                )}
+                <button
+                  className={`add-to-cart ${addedId === item._id ? 'added' : ''}`}
+                  onClick={() => addToCart(item)}
+                  disabled={!item.inStock}
+                >
+                  {!item.inStock
+                    ? 'Out of stock'
+                    : addedId === item._id
+                      ? 'Added ✓'
+                      : 'Add to Cart'}
+                </button>
               </div>
             </div>
           ))}
