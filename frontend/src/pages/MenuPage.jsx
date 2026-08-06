@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useCart } from '../context/CartContext.jsx';
 
 function MenuPage() {
   const { user, isFavorite, toggleFavorite } = useAuth();
+  const { qty, add, change } = useCart();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [categories, setCategories] = useState([]);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [activeCategory, setActiveCategory] = useState('all');
-  const [addedId, setAddedId] = useState(null);
+  const [activeCategory, setActiveCategory] = useState(searchParams.get('category') || 'all');
 
   useEffect(() => {
     api.get('/categories').then((res) => setCategories(res.data.data || [])).catch(() => {});
@@ -30,18 +32,26 @@ function MenuPage() {
       .finally(() => setLoading(false));
   }, [activeCategory, search]);
 
-  const addToCart = async (item) => {
+  const selectCategory = (id) => {
+    setActiveCategory(id);
+    if (id === 'all') setSearchParams({});
+    else setSearchParams({ category: id });
+  };
+
+  const handleAdd = async (item) => {
     if (!user) {
       navigate('/login');
       return;
     }
-    try {
-      await api.post('/cart', { foodItemId: item._id, qty: 1 });
-      setAddedId(item._id);
-      setTimeout(() => setAddedId(null), 1200);
-    } catch {
-      // ignore out-of-stock / auth errors on the same click
+    await add(item._id);
+  };
+
+  const handleChange = async (item, delta) => {
+    if (!user) {
+      navigate('/login');
+      return;
     }
+    await change(item._id, delta);
   };
 
   return (
@@ -59,7 +69,7 @@ function MenuPage() {
         <div className="category-tabs">
           <button
             className={activeCategory === 'all' ? 'active' : ''}
-            onClick={() => setActiveCategory('all')}
+            onClick={() => selectCategory('all')}
           >
             All
           </button>
@@ -67,7 +77,7 @@ function MenuPage() {
             <button
               key={c._id}
               className={activeCategory === c._id ? 'active' : ''}
-              onClick={() => setActiveCategory(c._id)}
+              onClick={() => selectCategory(c._id)}
             >
               {c.name}
             </button>
@@ -107,34 +117,54 @@ function MenuPage() {
                     <span className="menu-price">₹{item.price}</span>
                   </div>
                 </div>
-                {item.description && <p className="menu-desc">{item.description}</p>}
-                {item.tags?.length > 0 && (
-                  <div className="menu-tags">
-                    {item.tags.map((t) => (
+                <p className="menu-desc">{item.description || 'Freshly prepared, always delicious.'}</p>
+                <div className="menu-tags">
+                  {item.tags?.length > 0 &&
+                    item.tags.map((t) => (
                       <span key={t} className="tag">{t}</span>
                     ))}
-                  </div>
-                )}
+                </div>
                 <div className="menu-meta">
-                  {item.ratingCount > 0 && (
-                    <span>★ {item.avgRating} ({item.ratingCount})</span>
-                  )}
+                  <span className={item.ratingCount > 0 ? 'menu-rating' : 'menu-rating menu-rating-new'}>
+                    {item.ratingCount > 0
+                      ? `★ ${item.avgRating} (${item.ratingCount})`
+                      : '★ New'}
+                  </span>
                   <span>{item.prepTimeMin} min</span>
                   <span className={item.inStock ? 'in-stock' : 'out-of-stock'}>
                     {item.inStock ? 'In stock' : 'Out of stock'}
                   </span>
                 </div>
-                <button
-                  className={`add-to-cart ${addedId === item._id ? 'added' : ''}`}
-                  onClick={() => addToCart(item)}
-                  disabled={!item.inStock}
-                >
-                  {!item.inStock
-                    ? 'Out of stock'
-                    : addedId === item._id
-                      ? 'Added ✓'
-                      : 'Add to Cart'}
-                </button>
+                {qty(item._id) > 0 ? (
+                  <div className="qty-stepper">
+                    <button
+                      className="qty-btn"
+                      onClick={() => handleChange(item, -1)}
+                      aria-label="Decrease quantity"
+                    >
+                      −
+                    </button>
+                    <span className="qty-value">
+                      {qty(item._id)}
+                    </span>
+                    <button
+                      className="qty-btn"
+                      onClick={() => handleChange(item, 1)}
+                      disabled={!item.inStock}
+                      aria-label="Increase quantity"
+                    >
+                      +
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    className="add-to-cart"
+                    onClick={() => handleAdd(item)}
+                    disabled={!item.inStock}
+                  >
+                    {!item.inStock ? 'Out of stock' : 'Add to Cart'}
+                  </button>
+                )}
               </div>
             </div>
           ))}

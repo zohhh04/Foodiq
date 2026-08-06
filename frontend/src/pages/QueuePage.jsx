@@ -69,10 +69,20 @@ function QueuePage() {
       </div>
 
       {queue.length === 0 ? (
-        <p>
-          No orders in the queue right now.{' '}
-          <Link to="/menu">Order something tasty</Link> and it will appear here live.
-        </p>
+        <div className="empty-state">
+          <div className="empty-state-icon">
+            <span>🍽️</span>
+          </div>
+          <h2 className="empty-state-title">The queue is all clear</h2>
+          <p className="empty-state-sub">
+            No orders are waiting right now. Order something tasty and watch your token come to life
+            here in real time.
+          </p>
+          <Link to="/menu" className="empty-state-cta">
+            Order Something Tasty <span>→</span>
+          </Link>
+          <div className="empty-state-hint">Your order status updates live — no refreshing needed.</div>
+        </div>
       ) : (
         <ol className="queue-board">
           {queue.map((entry, idx) => (

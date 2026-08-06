@@ -112,7 +112,7 @@ function OrdersPage() {
       <div>
         <h1>My Orders</h1>
         <p>
-          <Link to="/login">Sign in</Link> to view your orders.
+          <Link to="/login">Login</Link> to view your orders.
         </p>
       </div>
     );

@@ -24,7 +24,7 @@ const orderSchema = new mongoose.Schema(
       enum: ['pending', 'paid', 'failed', 'refunded'],
       default: 'pending',
     },
-    paymentMethod: { type: String, enum: ['upi', 'card', 'wallet', 'cash'], default: 'upi' },
+    paymentMethod: { type: String, enum: ['upi', 'card', 'cash'], default: 'upi' },
     tokenNumber: { type: Number },
     queuePosition: { type: Number },
     estimatedWaitMin: { type: Number },

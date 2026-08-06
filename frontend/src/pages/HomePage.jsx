@@ -58,7 +58,10 @@ const FEATURES = [
 const STEPS = [
   { n: '01', title: 'Browse & Order', desc: 'Pick your dishes, add them to the cart and check out in seconds.' },
   { n: '02', title: 'Get Your Token', desc: 'AI predicts your wait time and assigns a smart digital token.' },
-  { n: '03', title: 'Pick Up Hot', desc: 'Track your position live and grab your food the moment it is ready.' },
+  { n: '03', title: 'Track Live', desc: 'Watch your position in the queue update in real time on the queue board.' },
+  { n: '04', title: 'Smart Alerts', desc: 'Get push notifications the moment your order moves to the next stage.' },
+  { n: '05', title: 'Pick Up Hot', desc: 'Grab your food the second it is ready — no hovering, no waiting around.' },
+  { n: '06', title: 'Rate & Repeat', desc: 'Share your feedback and let AI learn your taste for next time.' },
 ];
 
 const TESTIMONIALS = [
@@ -90,28 +93,50 @@ const TESTIMONIALS = [
       'The queue optimizer tells us exactly what to cook first. Lunch rush has never been this smooth.',
     rating: 5,
   },
+  {
+    name: 'Kabir Joshi',
+    role: 'Student',
+    quote:
+      'Push alerts are a lifesaver. I step away, get a ping, and my food is waiting for me.',
+    rating: 5,
+  },
+  {
+    name: 'Meera Nair',
+    role: 'Faculty',
+    quote:
+      'Ordering from my desk and picking up without queuing saves me my whole lunch break.',
+    rating: 4,
+  },
 ];
 
 const FAQS = [
   {
     q: 'Do I need an account to order?',
-    a: 'Yes — a quick registration lets you track your orders live, save favourites and get push notifications on your token.',
+    a: 'Yes — a quick one-minute registration lets you track your orders live, save favourite dishes, receive push notifications on your token, and keep a full order history. Your favourites and past orders also help the AI recommend dishes you will actually love.',
   },
   {
     q: 'How does the live queue work?',
-    a: 'When you place an order, the system issues a smart digital token and predicts your wait. You can watch your position update in real time on the queue board over Socket.io.',
+    a: 'When you place an order, the system issues a smart digital token and predicts your wait. As your order is prepared, you can watch your position update in real time on the queue board — streamed over Socket.io. Staff mark each token as it moves through preparing, ready and picked, so you always know exactly where you stand.',
   },
   {
     q: 'Which payment methods are supported?',
-    a: 'UPI, cards and digital wallets. Payment runs in mock mode for demos — orders are marked paid instantly without a real charge.',
+    a: 'UPI, cards and digital wallets. Payment runs in mock mode for demos, so orders are marked paid instantly without a real charge — perfect for testing the full ordering flow end to end.',
   },
   {
     q: 'How does AI predict my wait time?',
-    a: 'A gradient-boosting model trained on order history estimates your wait from queue length, items ordered, quantity and prep times — with a smart heuristic fallback.',
+    a: 'A gradient-boosting model trained on historical order data estimates your wait from queue length, items ordered, quantity, prep times and current kitchen load. It serves real-time predictions over the queue board and falls back to a smart heuristic when the model is unavailable.',
   },
   {
-    q: 'Can I rate my order after pickup?',
-    a: 'Yes! Completed orders can be rated with stars and a comment. Your feedback also powers better AI recommendations.',
+    q: 'How shall I rate my order?',
+    a: 'Once your order is completed, you can rate it with stars and a comment. Your feedback not only helps other customers pick better dishes, it also feeds the AI recommendation engine so your future suggestions keep getting sharper.',
+  },
+  {
+    q: 'Can I cancel an order?',
+    a: 'No. Once an order is placed, it cannot be cancelled — the kitchen starts preparing it right away. We recommend double-checking your items before you confirm, and only order what you are sure you will pick up.',
+  },
+  {
+    q: 'Is Foodiq available on mobile?',
+    a: 'Absolutely. Foodiq is fully responsive and works beautifully on phones and tablets, with push notifications for order updates so you never miss your token, even away from the canteen.',
   },
 ];
 
@@ -223,45 +248,35 @@ function Typewriter({ phrases }) {
 }
 
 function HomePage() {
-  const { user, isFavorite, toggleFavorite } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
-  const [health, setHealth] = useState(null);
   const [queue, setQueue] = useState([]);
-  const [popular, setPopular] = useState([]);
-  const [addedId, setAddedId] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [catCounts, setCatCounts] = useState({});
   const [openFaq, setOpenFaq] = useState(0);
 
   useEffect(() => {
-    api
-      .get('/health')
-      .then((res) => setHealth(res.data))
-      .catch(() => setHealth(null));
     api
       .get('/queue/status')
       .then((res) => setQueue(res.data.data || []))
       .catch(() => setQueue([]));
     api
+      .get('/categories')
+      .then((res) => setCategories(res.data.data || []))
+      .catch(() => setCategories([]));
+    api
       .get('/menu')
       .then((res) => {
         const items = res.data.data || [];
-        setPopular([...items].sort((a, b) => b.avgRating - a.avgRating).slice(0, 8));
+        const counts = {};
+        items.forEach((it) => {
+          const id = it.category?._id || it.category;
+          if (id) counts[id] = (counts[id] || 0) + 1;
+        });
+        setCatCounts(counts);
       })
-      .catch(() => setPopular([]));
+      .catch(() => setCatCounts({}));
   }, []);
-
-  const addToCart = async (item) => {
-    if (!user) {
-      navigate('/login');
-      return;
-    }
-    try {
-      await api.post('/cart', { foodItemId: item._id, qty: 1 });
-      setAddedId(item._id);
-      setTimeout(() => setAddedId(null), 1200);
-    } catch {
-      /* ignore */
-    }
-  };
 
   const nextUp = queue[0] || null;
 
@@ -298,12 +313,25 @@ function HomePage() {
 
           <Reveal delay={300}>
             <div className="hero-cta">
-              <Link to="/menu" className="btn btn-primary shine">
-                Browse the Menu
-              </Link>
-              <Link to="/queue" className="btn btn-ghost">
-                View Live Queue
-              </Link>
+              {user ? (
+                <>
+                  <Link to="/menu" className="btn btn-primary shine">
+                    Browse the Menu
+                  </Link>
+                  <Link to="/queue" className="btn btn-ghost">
+                    View Live Queue
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link to="/login" className="btn btn-primary shine">
+                    Sign In
+                  </Link>
+                  <Link to="/register" className="btn btn-ghost">
+                    Join Foodiq
+                  </Link>
+                </>
+              )}
             </div>
           </Reveal>
 
@@ -439,70 +467,57 @@ function HomePage() {
       <section className="home-section">
         <Reveal>
           <h2 className="section-title">
-            Popular <span className="gradient-text">right now</span>
+            Browse by <span className="gradient-text">category</span>
           </h2>
           <p className="section-sub">
-            The crowd favourites, ranked by rating. Add them to your cart in one tap.
+            From crispy dosas to sizzling noodles — pick a craving and dig in.
           </p>
         </Reveal>
 
-        <div className="catalog-grid home-dishes">
-          {popular.map((item, idx) => (
-            <Reveal key={item._id} delay={idx * 70}>
-              <div className="menu-card">
-                <div className="menu-card-img">
-                  {item.image ? (
-                    <img src={item.image} alt={item.name} loading="lazy" />
+        <div className="category-grid">
+          {categories.map((cat, idx) => (
+            <Reveal key={cat._id} delay={idx * 80}>
+              <Link
+                to={`/menu?category=${cat._id}`}
+                className={`category-card category-accent-${(idx % 5) + 1}`}
+              >
+                <span className="category-card-num" aria-hidden="true">
+                  {String(idx + 1).padStart(2, '0')}
+                </span>
+                <div className="category-card-img">
+                  {cat.image ? (
+                    <img src={cat.image} alt={cat.name} loading="lazy" />
                   ) : (
-                    <span className="menu-card-img-fallback">{item.name.charAt(0)}</span>
+                    <span className="menu-card-img-fallback">{cat.name.charAt(0)}</span>
                   )}
+                  <span className="category-card-overlay" />
                 </div>
-                <div className="menu-card-body">
-                  <div className="menu-card-top">
-                    <h3>{item.name}</h3>
-                    <div className="menu-card-actions">
-                      {user && (
-                        <button
-                          className={`fav-btn${isFavorite(item._id) ? ' fav-btn-active' : ''}`}
-                          onClick={() => toggleFavorite(item._id)}
-                          aria-label="Toggle favourite"
-                        >
-                          {isFavorite(item._id) ? '♥' : '♡'}
-                        </button>
-                      )}
-                      <span className="menu-price">₹{item.price}</span>
-                    </div>
-                  </div>
-                  {item.description && <p className="menu-desc">{item.description}</p>}
-                  <div className="menu-meta">
-                    <span className="dish-rating">
-                      ★ {item.avgRating ?? '—'} ({item.ratingCount ?? 0})
-                    </span>
-                    <span>{item.prepTimeMin} min</span>
-                  </div>
-                  <button
-                    className={`add-to-cart ${addedId === item._id ? 'added' : ''}`}
-                    onClick={() => addToCart(item)}
-                    disabled={!item.inStock}
-                  >
-                    {!item.inStock
-                      ? 'Out of stock'
-                      : addedId === item._id
-                        ? 'Added ✓'
-                        : 'Add to Cart'}
-                  </button>
+                <span className="category-card-badge">
+                  {catCounts[cat._id] ?? '—'} dishes
+                </span>
+                <div className="category-card-body">
+                  <h3>{cat.name}</h3>
+                  <span className="category-card-cta">
+                    Explore
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M5 12h14" />
+                      <path d="M12 5l7 7-7 7" />
+                    </svg>
+                  </span>
                 </div>
-              </div>
+              </Link>
             </Reveal>
           ))}
         </div>
-        <Reveal>
-          <div className="section-more">
-            <Link to="/menu" className="btn btn-ghost">
-              Explore the full menu →
-            </Link>
-          </div>
-        </Reveal>
       </section>
 
       <section className="ai-band">
@@ -587,6 +602,82 @@ function HomePage() {
 
       <section className="home-section">
         <Reveal>
+          <div className="cta-banner">
+            <span className="cta-glow" aria-hidden="true" />
+            <span className="cta-badge">Zero waiting · Zero crowds</span>
+            <h2>
+              Hungry? <span className="gradient-text">Skip the queue.</span>
+            </h2>
+            <p>Order in a few taps, get a smart token, and track it live.</p>
+            <ul className="cta-points">
+              <li>
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 3a9 9 0 0 1 9 9c0 5-4 9-9 9s-9-4-9-9 4-9 9-9z" />
+                  <path d="M12 7v5l3 2" />
+                </svg>
+                Live queue tracking
+              </li>
+              <li>
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 3l1.9 5.8L19 10l-5.1 1.2L12 17l-1.9-5.8L5 10l5.1-1.2L12 3z" />
+                </svg>
+                AI wait prediction
+              </li>
+              <li>
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+                </svg>
+                Pickup alerts
+              </li>
+              <li>
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 6h18v12H3z" />
+                  <path d="M3 10h18" />
+                  <path d="M6 15h4" />
+                </svg>
+                UPI, card &amp; cash
+              </li>
+            </ul>
+            <div className="cta-stats">
+              <div className="cta-stat">
+                <strong>
+                  <CountUp end={2} suffix=" min" />
+                </strong>
+                <span>Avg prep time</span>
+              </div>
+              <div className="cta-stat">
+                <strong>
+                  <CountUp end={40} suffix="+" />
+                </strong>
+                <span>Fresh dishes</span>
+              </div>
+              <div className="cta-stat">
+                <strong>
+                  <CountUp end={4.8} decimals={1} />
+                </strong>
+                <span>Student rating</span>
+              </div>
+              <div className="cta-stat">
+                <strong>
+                  <CountUp end={5000} suffix="+" />
+                </strong>
+                <span>Orders served</span>
+              </div>
+            </div>
+            <button
+              className="btn btn-primary shine cta-order-btn"
+              onClick={() => navigate('/register')}
+            >
+              Start Ordering
+            </button>
+            <p className="cta-note">No account yet? Registration takes less than a minute.</p>
+          </div>
+        </Reveal>
+      </section>
+
+      <section className="home-section">
+        <Reveal>
           <h2 className="section-title">
             Frequently asked <span className="gradient-text">questions</span>
           </h2>
@@ -613,24 +704,6 @@ function HomePage() {
         </div>
       </section>
 
-      <section className="home-section">
-        <Reveal>
-          <div className="cta-banner">
-            <h2>Hungry? Skip the queue.</h2>
-            <p>Order in a few taps, get a smart token, and track it live.</p>
-            <Link to="/menu" className="btn btn-primary shine">
-              Start Ordering
-            </Link>
-          </div>
-        </Reveal>
-      </section>
-
-      {health?.success && (
-        <p className="home-health">
-          <span className="home-health-dot" /> Backend online · {health.message}
-        </p>
-      )}
-
       <footer className="home-footer">
         <div className="home-footer-inner">
           <div className="footer-col footer-brand">
@@ -653,7 +726,7 @@ function HomePage() {
               <Link to="/profile">My Profile</Link>
             ) : (
               <>
-                <Link to="/login">Sign In</Link>
+                <Link to="/login">Login</Link>
                 <Link to="/register">Create Account</Link>
               </>
             )}

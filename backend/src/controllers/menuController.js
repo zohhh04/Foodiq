@@ -16,7 +16,14 @@ export const getMenu = asyncHandler(async (req, res) => {
   const { search, category, tag, minPrice, maxPrice, inStock } = req.query;
   const query = {};
 
-  if (search) query.$text = { $search: search };
+  if (search) {
+    const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    query.$or = [
+      { name: { $regex: escaped, $options: 'i' } },
+      { tags: { $regex: escaped, $options: 'i' } },
+      { description: { $regex: escaped, $options: 'i' } },
+    ];
+  }
   if (category) query.category = category;
   if (tag) query.tags = tag;
   if (minPrice || maxPrice) query.price = {};

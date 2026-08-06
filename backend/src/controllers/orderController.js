@@ -132,6 +132,20 @@ export const getMyOrders = asyncHandler(async (req, res) => {
   success(res, orders);
 });
 
+export const getAllOrders = asyncHandler(async (req, res) => {
+  const { status } = req.query;
+  const filter = {};
+  if (status) {
+    const allowed = ['placed', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled'];
+    if (!allowed.includes(status)) throw new ApiError(400, 'Invalid status filter');
+    filter.status = status;
+  }
+  const orders = await Order.find(filter)
+    .populate('user', 'name email phone role')
+    .sort({ createdAt: -1 });
+  success(res, orders);
+});
+
 export const getOrder = asyncHandler(async (req, res) => {
   const order = await Order.findById(req.params.id)
     .populate('user', 'name email')

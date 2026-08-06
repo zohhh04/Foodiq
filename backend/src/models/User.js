@@ -7,10 +7,15 @@ const userSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     phone: { type: String, trim: true },
     passwordHash: { type: String, required: true },
-    role: { type: String, enum: ['customer', 'staff', 'admin'], default: 'customer' },
+    role: { type: String, enum: ['student', 'customer', 'staff', 'admin'], default: 'student' },
     avatar: { type: String },
     favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'FoodItem' }],
     pushTokens: [{ type: String, trim: true }],
+    verified: { type: Boolean, default: false },
+    otp: { type: String, default: null },
+    otpExpires: { type: Date, default: null },
+    resetPasswordToken: { type: String, default: null },
+    resetPasswordExpires: { type: Date, default: null },
   },
   { timestamps: true }
 );

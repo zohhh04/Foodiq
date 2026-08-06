@@ -16,7 +16,7 @@ function NotificationsPage() {
       <div>
         <h1>Notifications</h1>
         <p>
-          <Link to="/login">Sign in</Link> to see your order updates.
+          <Link to="/login">Login</Link> to see your order updates.
         </p>
       </div>
     );
