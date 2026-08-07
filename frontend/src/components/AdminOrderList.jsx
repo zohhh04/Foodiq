@@ -7,10 +7,10 @@ const NEXT_ACTION = {
   placed: 'Confirm',
   confirmed: 'Start preparing',
   preparing: 'Mark ready',
-  ready: 'Complete',
+  ready: 'Order Picked Up',
 };
 
-function AdminOrderList({ status, emptyText, allowActions = true, allowCancel = false }) {
+function AdminOrderList({ status, emptyText, emptyTitle = 'Nothing here yet', emptyIcon = '🛎️', emptyHint, allowActions = true, allowCancel = false, readyOnly = false }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(null);
@@ -22,7 +22,11 @@ function AdminOrderList({ status, emptyText, allowActions = true, allowCancel = 
     api
       .get(url)
       .then((res) => {
-        ordersRef.current = res.data.data || [];
+        let list = res.data.data || [];
+        if (readyOnly) {
+          list = list.filter((o) => !['ready', 'completed', 'cancelled'].includes(o.status));
+        }
+        ordersRef.current = list;
         setOrders(ordersRef.current);
         ordersRef.current.forEach((o) => socket.emit('join:order', o._id));
       })
@@ -30,22 +34,36 @@ function AdminOrderList({ status, emptyText, allowActions = true, allowCancel = 
       .finally(() => setLoading(false));
 
     const onOrderStatus = ({ orderId, status: newStatus }) => {
-      ordersRef.current = ordersRef.current.map((o) =>
+      let list = ordersRef.current.map((o) =>
         String(o._id) === String(orderId) ? { ...o, status: newStatus } : o
       );
+      if (readyOnly) {
+        list = list.filter((o) => !['ready', 'completed', 'cancelled'].includes(o.status));
+      }
+      if (status && status !== 'all') {
+        list = list.filter((o) => o.status === status);
+      }
+      ordersRef.current = list;
       setOrders(ordersRef.current);
     };
     socket.on('order:status', onOrderStatus);
     return () => socket.off('order:status', onOrderStatus);
-  }, [status]);
+  }, [status, readyOnly]);
 
   const updateStatus = async (orderId, nextStatus) => {
     setBusy(orderId);
     try {
       const { data } = await api.put(`/orders/${orderId}/status`, { status: nextStatus });
-      ordersRef.current = ordersRef.current.map((o) =>
+      let list = ordersRef.current.map((o) =>
         String(o._id) === String(orderId) ? { ...o, status: data.data.status } : o
       );
+      if (readyOnly) {
+        list = list.filter((o) => !['ready', 'completed', 'cancelled'].includes(o.status));
+      }
+      if (status && status !== 'all') {
+        list = list.filter((o) => o.status === status);
+      }
+      ordersRef.current = list;
       setOrders(ordersRef.current);
     } catch (err) {
       alert(err.response?.data?.message || 'Could not update order status.');
@@ -57,33 +75,74 @@ function AdminOrderList({ status, emptyText, allowActions = true, allowCancel = 
   if (loading) return <p>Loading orders…</p>;
 
   if (orders.length === 0) {
-    return <p className="empty-note">{emptyText || 'No orders yet.'}</p>;
+    return (
+      <div className="empty-state">
+        <div className="empty-state-icon">
+          <span>{emptyIcon}</span>
+        </div>
+        <h2 className="empty-state-title">{emptyTitle}</h2>
+        <p className="empty-state-sub">{emptyText || 'No orders here right now.'}</p>
+        {emptyHint && <span className="empty-state-hint">{emptyHint}</span>}
+      </div>
+    );
   }
 
   return (
     <ul className="order-list">
       {orders.map((o) => {
-        const next = NEXT_ACTION[o.status];
+        const next = readyOnly ? 'Order Ready' : NEXT_ACTION[o.status];
         return (
-          <li key={o._id} className="order-card">
+          <li key={o._id} className={`order-card order-card-${o.status}`}>
             <div className="order-card-top">
-              <span className="order-token">Token #{o.tokenNumber || '—'}</span>
+              <div className="order-token-box">
+                <span className="order-token-label">Token</span>
+                <span className="order-token">#{o.tokenNumber || '—'}</span>
+              </div>
               <span className={`status-badge status-${o.status}`}>{o.status}</span>
             </div>
-            <p className="order-pay">
-              {o.user?.name || 'Unknown'} · {o.user?.email} ·{' '}
-              {new Date(o.createdAt).toLocaleString()} · {o.paymentMethod} · ₹{o.total}
-            </p>
+
+            <div className="order-customer">
+              <span className="order-customer-avatar">{(o.user?.name || 'U').charAt(0).toUpperCase()}</span>
+              <div className="order-customer-info">
+                <strong>{o.user?.name || 'Unknown'}</strong>
+                <span>{o.user?.email || 'No email'}</span>
+              </div>
+              <span className="order-time">
+                {new Date(o.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+
             <ul className="order-items">
               {o.items.map((it, idx) => (
                 <li key={idx}>
-                  {it.qty}× {it.name} — ₹{(it.price * it.qty).toFixed(2)}
+                  <span>{it.qty}× {it.name}</span>
+                  <span>₹{(it.price * it.qty).toFixed(2)}</span>
                 </li>
               ))}
             </ul>
-            {(allowActions && next) || (allowCancel && o.status !== 'completed') ? (
+
+            <div className="order-card-footer">
+              <div className="order-total">
+                <span>Total</span>
+                <strong>₹{o.total}</strong>
+              </div>
+              {o.pickupSlot && (
+                <span className="order-slot" title="Pickup slot">🕒 {o.pickupSlot}</span>
+              )}
+            </div>
+
+            {(readyOnly && next) || ((allowActions && next) || (allowCancel && o.status !== 'completed')) ? (
               <div className="admin-actions">
-                {allowActions && next && (
+                {readyOnly && next && (
+                  <button
+                    className="ready"
+                    onClick={() => updateStatus(o._id, 'ready')}
+                    disabled={busy === o._id}
+                  >
+                    {busy === o._id ? 'Updating…' : next}
+                  </button>
+                )}
+                {!readyOnly && allowActions && next && (
                   <button
                     onClick={() => updateStatus(o._id, STATUS_FLOW[STATUS_FLOW.indexOf(o.status) + 1])}
                     disabled={busy === o._id}

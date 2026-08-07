@@ -280,6 +280,8 @@ function HomePage() {
 
   const nextUp = queue[0] || null;
 
+  const reviews = TESTIMONIALS;
+
   return (
     <div className="home">
       <section className="hero">
@@ -314,14 +316,25 @@ function HomePage() {
           <Reveal delay={300}>
             <div className="hero-cta">
               {user ? (
-                <>
-                  <Link to="/menu" className="btn btn-primary shine">
-                    Browse the Menu
-                  </Link>
-                  <Link to="/queue" className="btn btn-ghost">
-                    View Live Queue
-                  </Link>
-                </>
+                user.role === 'admin' ? (
+                  <>
+                    <Link to="/admin/orders" className="btn btn-primary shine">
+                      Manage Orders
+                    </Link>
+                    <Link to="/admin/demand" className="btn btn-ghost">
+                      Demand Insights
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <Link to="/menu" className="btn btn-primary shine">
+                      Browse the Menu
+                    </Link>
+                    <Link to="/queue" className="btn btn-ghost">
+                      View Live Queue
+                    </Link>
+                  </>
+                )
               ) : (
                 <>
                   <Link to="/login" className="btn btn-primary shine">
@@ -579,14 +592,15 @@ function HomePage() {
         </Reveal>
 
         <div className="testimonials-grid">
-          {TESTIMONIALS.map((t, idx) => (
-            <Reveal key={t.name} delay={idx * 90}>
+          {reviews.map((t, idx) => (
+            <Reveal key={`${t.name}-${idx}`} delay={idx * 90}>
               <div className="testimonial-card">
                 <div className="testimonial-stars">
                   {'★'.repeat(t.rating)}
                   <span className="testimonial-stars-off">{'★'.repeat(5 - t.rating)}</span>
                 </div>
                 <p className="testimonial-quote">"{t.quote}"</p>
+                {t.item && <span className="testimonial-item">ordered {t.item}</span>}
                 <div className="testimonial-author">
                   <span className="testimonial-avatar">{t.name.charAt(0)}</span>
                   <span>
@@ -730,7 +744,6 @@ function HomePage() {
                 <Link to="/register">Create Account</Link>
               </>
             )}
-            <Link to="/notifications">Notifications</Link>
           </div>
           <div className="footer-col">
             <h4>Reach Us</h4>

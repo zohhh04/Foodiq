@@ -3,11 +3,19 @@ import AdminOrderList from '../components/AdminOrderList.jsx';
 function AdminOrderReadyPage() {
   return (
     <div>
-      <h1>Order Ready</h1>
-      <p className="live-hint">Orders ready for pickup at the counter.</p>
+      <div className="admin-page-head">
+        <div className="admin-page-head-icon">🛎️</div>
+        <div>
+          <h1>Order Ready</h1>
+          <p className="live-hint">Orders ready for pickup at the counter.</p>
+        </div>
+      </div>
       <AdminOrderList
         status="ready"
-        emptyText="No orders are ready right now."
+        emptyTitle="No orders ready"
+        emptyIcon="🛎️"
+        emptyText="Orders you mark as ready will land here for pickup."
+        emptyHint="Stand by — ready orders pop in here the moment you mark them."
         allowActions
         allowCancel
       />

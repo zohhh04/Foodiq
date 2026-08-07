@@ -55,7 +55,7 @@ const finalizeOrder = async (orderId, userId) => {
 };
 
 export const createOrder = asyncHandler(async (req, res) => {
-  const { paymentMethod = 'upi' } = req.body;
+  const { paymentMethod = 'upi', pickupSlot = 'Quick pickup (ASAP)' } = req.body;
   const cart = await Cart.findOne({ user: req.user._id }).populate('items.foodItem');
 
   if (!cart || cart.items.length === 0) throw new ApiError(400, 'Cart is empty');
@@ -79,6 +79,7 @@ export const createOrder = asyncHandler(async (req, res) => {
     status: 'placed',
     paymentStatus: 'pending',
     paymentMethod,
+    pickupSlot,
   });
 
   const payment = await createPaymentOrder({
@@ -169,6 +170,12 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
     await QueueToken.findOneAndUpdate({ order: order._id }, { status: tokenStatusMap[status] });
   }
 
+  // Once completed, the order leaves the live queue and moves to the order history.
+  if (status === 'completed') {
+    const { removeFromQueue } = await import('../services/queueService.js');
+    await removeFromQueue(order._id);
+  }
+
   const { default: app } = await import('../app.js');
   const io = app.get('io');
 
@@ -191,12 +198,19 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
       body:
         status === 'ready'
           ? `Token ${order.tokenNumber} is ready for pickup at the counter.`
-          : 'Your food is on the way! Check the live queue for your token.',
+          : status === 'completed'
+            ? `Your order (Token ${order.tokenNumber}) has been picked up. Enjoy your meal! 🎉`
+            : 'Your food is on the way! Check the live queue for your token.',
       type: 'order',
       data: {
         orderId: String(order._id),
         status,
         tokenNumber: order.tokenNumber ?? token?.tokenNumber,
+        pickupSlot: order.pickupSlot,
+        total: order.total,
+        paymentMethod: order.paymentMethod,
+        completedAt: order.updatedAt,
+        items: order.items.map((i) => ({ name: i.name, qty: i.qty })),
       },
     });
   }

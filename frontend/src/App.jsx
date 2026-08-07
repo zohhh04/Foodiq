@@ -14,15 +14,15 @@ import ResetPasswordPage from './pages/ResetPasswordPage.jsx';
 import LogoutPage from './pages/LogoutPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import OrdersPage from './pages/OrdersPage.jsx';
-import NotificationsPage from './pages/NotificationsPage.jsx';
 import FavoritesPage from './pages/FavoritesPage.jsx';
+import RatingPage from './pages/RatingPage.jsx';
+import MyRatingsPage from './pages/MyRatingsPage.jsx';
 import AdminOrdersPage from './pages/AdminOrdersPage.jsx';
 import AdminOrderReadyPage from './pages/AdminOrderReadyPage.jsx';
 import AdminOrderCompletedPage from './pages/AdminOrderCompletedPage.jsx';
 import AdminDemandPage from './pages/AdminDemandPage.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import AdminRoute from './components/AdminRoute.jsx';
-import NotificationBell from './components/NotificationBell.jsx';
 
 function Navbar() {
   const { user, logout } = useAuth();
@@ -31,7 +31,10 @@ function Navbar() {
 
   return (
     <nav className="navbar">
-      <Link to="/" className="brand">Foodiq</Link>
+      <Link to="/" className="brand">
+        <span className="brand-logo" aria-hidden="true">🍽️</span>
+        Foodiq
+      </Link>
       <div className="nav-links">
         {user ? (
           user.role === 'admin' ? (
@@ -59,8 +62,8 @@ function Navbar() {
                 {cartCount > 0 && <span className="nav-badge">{cartCount}</span>}
               </NavLink>
               <NavLink to="/queue">Queue</NavLink>
-              <NotificationBell />
               <NavLink to="/orders">Orders</NavLink>
+              <NavLink to="/ratings">Ratings</NavLink>
               <NavLink to="/favorites">Favorites</NavLink>
               <a
                 href="#logout"
@@ -129,18 +132,26 @@ function AppRoutes() {
             }
           />
           <Route
-            path="/notifications"
-            element={
-              <ProtectedRoute>
-                <NotificationsPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
             path="/favorites"
             element={
               <ProtectedRoute>
                 <FavoritesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/ratings"
+            element={
+              <ProtectedRoute>
+                <MyRatingsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/rate/:orderId"
+            element={
+              <ProtectedRoute>
+                <RatingPage />
               </ProtectedRoute>
             }
           />

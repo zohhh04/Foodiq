@@ -32,7 +32,7 @@ function ResetPasswordPage() {
 
   if (!token) {
     return (
-      <div className="auth-page">
+      <div className="auth-page auth-lg-page">
         <h1>Reset Password</h1>
         <p className="auth-error">This reset link is invalid or missing. Please request a new one.</p>
         <p>
@@ -43,7 +43,7 @@ function ResetPasswordPage() {
   }
 
   return (
-    <div className="auth-page">
+    <div className="auth-page auth-lg-page">
       <h1>Set a New Password</h1>
       {error && <p className="auth-error">{error}</p>}
       {message && (

@@ -44,7 +44,7 @@ function VerifyOtpPage() {
   };
 
   return (
-    <div className="auth-page">
+    <div className="auth-page auth-lg-page">
       <h1>Verify Your Email</h1>
       {error && <p className="auth-error">{error}</p>}
       {message && <p className="auth-success">{message}</p>}

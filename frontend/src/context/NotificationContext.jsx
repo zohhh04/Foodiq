@@ -21,6 +21,11 @@ export function NotificationProvider({ children }) {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [unread, setUnread] = useState(0);
+  const [toast, setToast] = useState(null);
+
+  const pushToast = useCallback((n) => setToast(n), []);
+
+  const dismissToast = useCallback(() => setToast(null), []);
 
   const refresh = useCallback(async () => {
     if (!user) return;
@@ -51,12 +56,11 @@ export function NotificationProvider({ children }) {
     if (!user) return;
     const socket = getSocket();
     const onNotification = (n) => {
-      setNotifications((prev) => [n, ...prev]);
-      setUnread((prev) => prev + 1);
+      pushToast(n);
     };
     socket.on('notification', onNotification);
     return () => socket.off('notification', onNotification);
-  }, [user]);
+  }, [user, pushToast]);
 
   const markRead = useCallback(
     async (id) => {
@@ -84,8 +88,52 @@ export function NotificationProvider({ children }) {
   }, [refresh]);
 
   return (
-    <NotificationContext.Provider value={{ notifications, unread, refresh, markRead, markAllRead }}>
+    <NotificationContext.Provider value={{ notifications, unread, refresh, markRead, markAllRead, toast, dismissToast }}>
       {children}
+
+      {toast && (
+        <div className="notify-toast" role="status">
+          <div className="notify-toast-head">
+            <span className="notify-toast-icon">🔔</span>
+            <span className="notify-toast-title">{toast.title || 'Order update'}</span>
+            <button className="notify-toast-close" onClick={dismissToast} aria-label="Dismiss">×</button>
+          </div>
+          {toast.body && <p className="notify-toast-body">{toast.body}</p>}
+          {toast.data?.items?.length > 0 && (
+            <ul className="notify-toast-items">
+              {toast.data.items.map((it, idx) => (
+                <li key={idx}>
+                  <span>{it.qty}× {it.name}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="notify-toast-meta">
+            {toast.data?.tokenNumber && (
+              <span className="notify-toast-token">Token #{toast.data.tokenNumber}</span>
+            )}
+            {toast.data?.pickupSlot && (
+              <span className="notify-toast-slot">🕒 {toast.data.pickupSlot}</span>
+            )}
+            {toast.data?.total != null && (
+              <span className="notify-toast-total">₹{toast.data.total}</span>
+            )}
+          </div>
+          {toast.data?.status === 'completed' && (
+            <>
+              <div className="notify-toast-details">
+                <span>Payment: <strong>{toast.data.paymentMethod || '—'}</strong></span>
+                {toast.data.completedAt && (
+                  <span>
+                    Picked up: <strong>{new Date(toast.data.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong>
+                  </span>
+                )}
+              </div>
+              <p className="notify-toast-thanks">🙏 Thanks for ordering with Foodiq. Come back soon!</p>
+            </>
+          )}
+        </div>
+      )}
     </NotificationContext.Provider>
   );
 }

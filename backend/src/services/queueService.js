@@ -44,6 +44,31 @@ export const dequeueNext = async () => {
   return memoryQueue.shift() ?? null;
 };
 
+// Remove a specific order from the queue (called when the order is completed).
+export const removeFromQueue = async (orderId) => {
+  const id = String(orderId);
+  const result = await withRedis(async (r) => {
+    const items = await r.lrange(QUEUE_KEY, 0, -1);
+    const kept = items.filter((s) => {
+      try {
+        return JSON.parse(s).orderId !== id;
+      } catch {
+        return true;
+      }
+    });
+    if (kept.length === items.length) return false;
+    await r.del(QUEUE_KEY);
+    if (kept.length) await r.rpush(QUEUE_KEY, ...kept);
+    return true;
+  });
+  if (!result.ok) {
+    const before = memoryQueue.length;
+    memoryQueue = memoryQueue.filter((e) => e.orderId !== id);
+    return memoryQueue.length !== before;
+  }
+  return result.value;
+};
+
 export const getQueueStatus = async () => {
   const result = await withRedis(async (r) => r.lrange(QUEUE_KEY, 0, -1));
   const queue = result.ok

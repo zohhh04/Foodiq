@@ -44,6 +44,16 @@ function FavoritesPage() {
     await change(item._id, delta);
   };
 
+  const handleAddAll = async () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    for (const item of items) {
+      if (item.inStock && qty(item._id) === 0) await add(item._id);
+    }
+  };
+
   if (!user) {
     return (
       <div>
@@ -69,14 +79,37 @@ function FavoritesPage() {
   return (
     <div>
       <div className="favorites-hero">
-        <h1>
-          <span className="favorites-heart">♥</span> My Favorites
-        </h1>
-        <p>
-          {items.length > 0
-            ? `${items.length} dish${items.length === 1 ? '' : 'es'} you love, always one tap away.`
-            : 'Every dish you love, gathered in one place.'}
-        </p>
+        <div className="favorites-hero-glow" aria-hidden="true" />
+        <span className="favorites-hero-emoji">💜</span>
+        <div className="favorites-hero-head">
+          <h1>
+            <span className="favorites-heart">♥</span> My Favorites
+          </h1>
+          <p>
+            {items.length > 0
+              ? `${items.length} dish${items.length === 1 ? '' : 'es'} you love, always one tap away.`
+              : 'Every dish you love, gathered in one place.'}
+          </p>
+        </div>
+        {items.length > 0 && (
+          <div className="favorites-hero-side">
+            <div className="favorites-stats">
+              <div>
+                <strong>{items.length}</strong>
+                <span>Saved</span>
+              </div>
+              <div>
+                <strong>
+                  {items.filter((i) => i.inStock).length}/{items.length}
+                </strong>
+                <span>In stock</span>
+              </div>
+            </div>
+            <button className="btn btn-primary shine" onClick={handleAddAll}>
+              Add all to cart <span>→</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {items.length === 0 ? (
@@ -93,28 +126,31 @@ function FavoritesPage() {
           </Link>
         </div>
       ) : (
-        <div className="catalog-grid">
+        <div className="catalog-grid favorites-grid">
           {items.map((item) => (
-            <div key={item._id} className="menu-card">
+            <div key={item._id} className="menu-card favorites-card">
               <div className="menu-card-img">
                 {item.image ? (
                   <img src={item.image} alt={item.name} loading="lazy" />
                 ) : (
                   <span className="menu-card-img-fallback">{item.name.charAt(0)}</span>
                 )}
+                <div className="favorites-card-overlay">
+                  <span>Your pick</span>
+                </div>
+                <button
+                  className="fav-btn fav-btn-active favorites-remove"
+                  onClick={() => remove(item._id)}
+                  aria-label="Remove from favorites"
+                  title="Remove from favorites"
+                >
+                  ♥
+                </button>
               </div>
               <div className="menu-card-body">
                 <div className="menu-card-top">
                   <h3>{item.name}</h3>
                   <div className="menu-card-actions">
-                    <button
-                      className="fav-btn fav-btn-active"
-                      onClick={() => remove(item._id)}
-                      aria-label="Remove from favorites"
-                      title="Remove from favorites"
-                    >
-                      ♥
-                    </button>
                     <span className="menu-price">₹{item.price}</span>
                   </div>
                 </div>

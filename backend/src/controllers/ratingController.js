@@ -62,7 +62,21 @@ export const getItemRatings = asyncHandler(async (req, res) => {
 // The user's own ratings, so the UI can pre-fill "already rated" states.
 export const getMyRatings = asyncHandler(async (req, res) => {
   const ratings = await Rating.find({ user: req.user._id })
+    .populate('order', 'tokenNumber total createdAt')
+    .populate('foodItem', 'name')
     .select('order foodItem rating comment createdAt')
     .sort({ createdAt: -1 });
+  success(res, ratings);
+});
+
+// The latest handful of ratings, for the "Loved by students & staff" section.
+export const getLatestRatings = asyncHandler(async (req, res) => {
+  const ratings = await Rating.find()
+    .populate('user', 'name role')
+    .populate('foodItem', 'name')
+    .populate('order', 'tokenNumber')
+    .select('rating comment createdAt')
+    .sort({ createdAt: -1 })
+    .limit(6);
   success(res, ratings);
 });

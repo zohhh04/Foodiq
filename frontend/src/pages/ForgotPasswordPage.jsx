@@ -25,7 +25,7 @@ function ForgotPasswordPage() {
   };
 
   return (
-    <div className="auth-page">
+    <div className="auth-page auth-lg-page">
       <h1>Forgot Password</h1>
       <p>Enter the email you registered with. We'll send you a link to reset your password.</p>
       {error && <p className="auth-error">{error}</p>}

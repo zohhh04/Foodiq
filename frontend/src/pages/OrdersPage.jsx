@@ -3,65 +3,11 @@ import { Link } from 'react-router-dom';
 import api from '../api/client.js';
 import { getSocket } from '../socket.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import RatingStars from '../components/RatingStars.jsx';
-
-function RateOrder({ order, myRating, onRated }) {
-  const [rating, setRating] = useState(myRating?.rating || 0);
-  const [comment, setComment] = useState(myRating?.comment || '');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-
-  if (myRating) {
-    return (
-      <div className="order-rating done">
-        <p>You rated this order:</p>
-        <RatingStars value={myRating.rating} size="sm" />
-        {myRating.comment && <p className="rating-comment">"{myRating.comment}"</p>}
-      </div>
-    );
-  }
-
-  const submit = async (e) => {
-    e.preventDefault();
-    setError('');
-    if (!rating) {
-      setError('Pick a star rating first.');
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await api.post('/ratings', { order: order._id, rating, comment });
-      onRated(order._id, { rating, comment });
-    } catch (err) {
-      setError(err.response?.data?.message || 'Could not submit rating.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <form className="order-rating" onSubmit={submit}>
-      <p>How was your order?</p>
-      <RatingStars value={rating} onChange={setRating} />
-      {error && <p className="auth-error">{error}</p>}
-      <textarea
-        value={comment}
-        onChange={(e) => setComment(e.target.value)}
-        placeholder="Share a quick comment (optional)…"
-        rows={2}
-      />
-      <button type="submit" disabled={submitting}>
-        {submitting ? 'Submitting…' : 'Submit Rating'}
-      </button>
-    </form>
-  );
-}
 
 function OrdersPage() {
   const { user } = useAuth();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [ratedMap, setRatedMap] = useState({});
   const ordersRef = useRef([]);
 
   useEffect(() => {
@@ -76,17 +22,6 @@ function OrdersPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-
-    api
-      .get('/ratings/my')
-      .then((res) => {
-        const map = {};
-        (res.data.data || []).forEach((r) => {
-          if (r.order) map[String(r.order)] = r;
-        });
-        setRatedMap(map);
-      })
-      .catch(() => {});
   }, [user]);
 
   // Live order status: staff updates flow straight into the list.
@@ -103,10 +38,6 @@ function OrdersPage() {
     return () => socket.off('order:status', onOrderStatus);
   }, [user]);
 
-  const handleRated = (orderId, rating) => {
-    setRatedMap((prev) => ({ ...prev, [String(orderId)]: rating }));
-  };
-
   if (!user) {
     return (
       <div>
@@ -122,12 +53,26 @@ function OrdersPage() {
 
   return (
     <div>
-      <h1>My Orders</h1>
-      <p className="live-hint">Live: statuses update automatically.</p>
+      <div className="admin-page-head">
+        <div className="admin-page-head-icon">🧾</div>
+        <div>
+          <h1>My Orders</h1>
+          <p className="live-hint">Live: statuses update automatically as your food is prepared.</p>
+        </div>
+      </div>
       {orders.length === 0 ? (
-        <p>
-          No orders yet. <Link to="/menu">Order something</Link>.
-        </p>
+        <div className="empty-state">
+          <div className="empty-state-icon">
+            <span>🍲</span>
+          </div>
+          <h2 className="empty-state-title">No orders yet</h2>
+          <p className="empty-state-sub">
+            Your order history will show up here — ready to reorder in one tap.
+          </p>
+          <Link to="/menu" className="empty-state-cta">
+            Order Something <span>→</span>
+          </Link>
+        </div>
       ) : (
         <ul className="order-list">
           {orders.map((o) => (
@@ -138,25 +83,24 @@ function OrdersPage() {
               </div>
               <p className="order-pay">
                 {new Date(o.createdAt).toLocaleDateString()} · {o.paymentMethod} ·{' '}
-                {o.paymentStatus} · ₹{o.total}
+                {o.paymentStatus} · <strong>₹{o.total}</strong>
               </p>
               {o.status === 'ready' && (
-                <p className="order-ready-note">Ready for pickup at the counter!</p>
+                <p className="order-ready-note">Ready for pickup at the counter! 🛎️</p>
               )}
               <ul className="order-items">
                 {o.items.map((it, idx) => (
                   <li key={idx}>
-                    {it.qty}× {it.name} — ₹{(it.price * it.qty).toFixed(2)}
+                    <span>{it.qty}× {it.name}</span>
+                    <span>₹{(it.price * it.qty).toFixed(2)}</span>
                   </li>
                 ))}
               </ul>
-              {o.status === 'completed' && (
-                <RateOrder
-                  order={o}
-                  myRating={ratedMap[String(o._id)]}
-                  onRated={handleRated}
-                />
-              )}
+              <div className="order-rate-row">
+                <Link to={`/rate/${o._id}`} className="btn btn-primary shine">
+                  Ratings <span>→</span>
+                </Link>
+              </div>
             </li>
           ))}
         </ul>
