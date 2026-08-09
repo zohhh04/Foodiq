@@ -3,10 +3,12 @@ import { Link } from 'react-router-dom';
 import api from '../api/client.js';
 import { getSocket } from '../socket.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import RatingStars from '../components/RatingStars.jsx';
 
 function OrdersPage() {
   const { user } = useAuth();
   const [orders, setOrders] = useState([]);
+  const [ratingsByOrder, setRatingsByOrder] = useState({});
   const [loading, setLoading] = useState(true);
   const ordersRef = useRef([]);
 
@@ -22,6 +24,19 @@ function OrdersPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+
+    api
+      .get('/ratings/my')
+      .then((res) => {
+        const map = {};
+        (res.data.data || []).forEach((r) => {
+          const orderId =
+            r.order && typeof r.order === 'object' ? r.order._id : r.order;
+          if (orderId) map[String(orderId)] = r;
+        });
+        setRatingsByOrder(map);
+      })
+      .catch(() => {});
   }, [user]);
 
   // Live order status: staff updates flow straight into the list.
@@ -51,15 +66,42 @@ function OrdersPage() {
 
   if (loading) return <p>Loading orders…</p>;
 
+  const completedCount = orders.filter((o) => o.status === 'completed').length;
+  const ratedCount = orders.filter((o) => ratingsByOrder[String(o._id)]).length;
+
   return (
     <div>
-      <div className="admin-page-head">
-        <div className="admin-page-head-icon">🧾</div>
-        <div>
-          <h1>My Orders</h1>
-          <p className="live-hint">Live: statuses update automatically as your food is prepared.</p>
+      <div className="orders-hero">
+        <div className="orders-hero-icon">🧾</div>
+        <div className="orders-hero-main">
+          <div className="orders-hero-title-row">
+            <h1>My Orders</h1>
+            <span className="demand-live-badge">
+              <span className="live-dot" /> Live
+            </span>
+          </div>
+          <p className="live-hint">
+            Statuses update automatically as your food is prepared.
+          </p>
         </div>
+        {orders.length > 0 && (
+          <div className="orders-stats">
+            <div className="orders-stat">
+              <strong>{orders.length}</strong>
+              <span>Orders</span>
+            </div>
+            <div className="orders-stat">
+              <strong>{completedCount}</strong>
+              <span>Completed</span>
+            </div>
+            <div className="orders-stat orders-stat-rated">
+              <strong>{ratedCount}</strong>
+              <span>Rated</span>
+            </div>
+          </div>
+        )}
       </div>
+
       {orders.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">
@@ -75,34 +117,77 @@ function OrdersPage() {
         </div>
       ) : (
         <ul className="order-list">
-          {orders.map((o) => (
-            <li key={o._id} className="order-card">
-              <div className="order-card-top">
-                <span className="order-token">Token #{o.tokenNumber || '—'}</span>
-                <span className={`status-badge status-${o.status}`}>{o.status}</span>
-              </div>
-              <p className="order-pay">
-                {new Date(o.createdAt).toLocaleDateString()} · {o.paymentMethod} ·{' '}
-                {o.paymentStatus} · <strong>₹{o.total}</strong>
-              </p>
-              {o.status === 'ready' && (
-                <p className="order-ready-note">Ready for pickup at the counter! 🛎️</p>
-              )}
-              <ul className="order-items">
-                {o.items.map((it, idx) => (
-                  <li key={idx}>
-                    <span>{it.qty}× {it.name}</span>
-                    <span>₹{(it.price * it.qty).toFixed(2)}</span>
-                  </li>
-                ))}
-              </ul>
-              <div className="order-rate-row">
-                <Link to={`/rate/${o._id}`} className="btn btn-primary shine">
-                  Ratings <span>→</span>
-                </Link>
-              </div>
-            </li>
-          ))}
+          {orders.map((o) => {
+            const rated = ratingsByOrder[String(o._id)];
+            return (
+              <li key={o._id} className={`order-card order-card-${o.status}`}>
+                <div className="order-card-top">
+                  <div className="order-card-date">
+                    <span className="order-card-date-icon">📅</span>
+                    <span>
+                      {new Date(o.createdAt).toLocaleDateString(undefined, {
+                        weekday: 'short',
+                        day: 'numeric',
+                        month: 'short',
+                      })}
+                    </span>
+                  </div>
+                  <span className={`status-badge status-${o.status}`}>
+                    {o.status}
+                  </span>
+                </div>
+                <ul className="order-items">
+                  {o.items.map((it, idx) => (
+                    <li key={idx}>
+                      <span>
+                        {it.qty}× {it.name}
+                      </span>
+                      <span>₹{(it.price * it.qty).toFixed(2)}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="order-pay">
+                  <span className="order-pay-method">
+                    {o.paymentMethod === 'cash' ? '💵' : '💳'}{' '}
+                    {o.paymentMethod}
+                  </span>
+                  <span className="order-pay-status">· {o.paymentStatus}</span>
+                  <span className="order-pay-total">
+                    <strong>₹{o.total}</strong>
+                  </span>
+                </div>
+                {o.status === 'ready' && (
+                  <p className="order-ready-note">
+                    Ready for pickup at the counter! 🛎️
+                  </p>
+                )}
+                <div className="order-rate-row">
+                  {rated ? (
+                    <div className="order-rated-chip">
+                      <span className="order-rated-tick">✓</span>
+                      <RatingStars value={rated.rating} size="sm" />
+                      <span className="order-rated-label">Rated</span>
+                    </div>
+                  ) : o.status === 'completed' ? (
+                    <Link
+                      to={`/rate/${o._id}`}
+                      className="btn btn-primary shine"
+                    >
+                      Rate this order <span>★</span>
+                    </Link>
+                  ) : o.status === 'ready' ? (
+                    <span className="order-rate-hint">
+                      🛎️ Pick up your order, then rate it!
+                    </span>
+                  ) : (
+                    <span className="order-rate-hint">
+                      ⭐ You can rate after pickup
+                    </span>
+                  )}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

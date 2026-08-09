@@ -192,7 +192,7 @@ function RatingPage() {
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 placeholder="Share a quick comment (optional)…"
-                rows={3}
+                rows={2}
               />
               <div className="rating-actions">
                 <button type="submit" className="btn btn-primary shine" disabled={submitting}>

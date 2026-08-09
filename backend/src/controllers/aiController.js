@@ -2,7 +2,29 @@ import FoodItem from '../models/FoodItem.js';
 import Order from '../models/Order.js';
 import Rating from '../models/Rating.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { ApiError } from '../utils/ApiError.js';
 import { success } from '../utils/ApiResponse.js';
+import { answerQuestion } from '../services/assistantService.js';
+import { parseOrderRequest } from '../services/orderParserService.js';
+
+// Foodiq AI assistant — answers student/admin questions precisely.
+export const askAssistant = asyncHandler(async (req, res) => {
+  const { question } = req.body;
+  if (!question || typeof question !== 'string' || question.trim().length < 2) {
+    throw new ApiError(400, 'Please ask a question');
+  }
+  success(res, answerQuestion(question, req.user?.role));
+});
+
+// AI-assisted ordering — parse a natural-language request into cart items.
+export const parseOrder = asyncHandler(async (req, res) => {
+  const { text } = req.body;
+  if (!text || typeof text !== 'string' || text.trim().length < 2) {
+    throw new ApiError(400, 'Please tell me what you would like to order');
+  }
+  const result = await parseOrderRequest(text);
+  success(res, result);
+});
 
 // Export a training snapshot (catalog + orders + ratings) in the exact shape
 // `ai/train.py` expects, so models are trained on real Foodiq ids.

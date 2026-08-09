@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useCart } from '../context/CartContext.jsx';
@@ -10,43 +10,43 @@ function CartPage() {
   const { user } = useAuth();
   const { refresh: refreshCart } = useCart();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const fmtTime = (d) =>
+    d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+
+  const initialSlotPreset = location.state?.pickupSlot || 'asap';
+
+  const formatPresetSlot = (preset) => {
+    if (!preset) return '';
+    if (preset === 'asap') return 'Quick pickup (ASAP)';
+    const mins = parseInt(preset, 10);
+    if (!Number.isFinite(mins) || mins <= 0) return '';
+    const now = new Date();
+    const to = new Date(now.getTime() + mins * 60000);
+    return `Within ${mins} min (${fmtTime(now)}–${fmtTime(to)})`;
+  };
+
+  const initialSlotConfirmed = Boolean(location.state?.pickupSlot);
+  const initialConfirmedSlot = formatPresetSlot(initialSlotPreset) || location.state?.pickupSlotLabel || '';
+
   const [cart, setCart] = useState(null);
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState('');
   const [paid, setPaid] = useState(null);
-  const [slotPreset, setSlotPreset] = useState('asap');
+  const [slotPreset, setSlotPreset] = useState(initialSlotPreset);
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
-  const [slotConfirmed, setSlotConfirmed] = useState(false);
-  const [confirmedSlot, setConfirmedSlot] = useState('');
+  const [slotConfirmed, setSlotConfirmed] = useState(initialSlotConfirmed);
+  const [confirmedSlot, setConfirmedSlot] = useState(initialConfirmedSlot);
   const [showModal, setShowModal] = useState(false);
-  const [toast, setToast] = useState(null);
-
-  useEffect(() => {
-    if (!paid || !showModal) return;
-    const t = setTimeout(() => {
-      setShowModal(false);
-      setToast({ method: paid.method, confirmation: paid.confirmation });
-    }, 2000);
-    return () => clearTimeout(t);
-  }, [paid, showModal]);
-
-  useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(() => setToast(null), 8000);
-    return () => clearTimeout(t);
-  }, [toast]);
-
-  const fmtTime = (d) =>
-    d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
 
   const presetOptions = [
     { value: 'asap', label: 'Quick pickup (ASAP)' },
     { value: '30', label: 'Within 30 min' },
     { value: '60', label: 'Within 1 hour' },
     { value: '90', label: 'Within 1.5 hours' },
-    { value: 'custom', label: 'Custom time range…' },
   ];
 
   const getPickupSlot = () => {
@@ -112,7 +112,7 @@ function CartPage() {
       const paymentMethod = e.target.payment.value;
       const { data } = await api.post('/orders', { paymentMethod, pickupSlot: confirmedSlot });
       refreshCart();
-      setToast(null);
+      setCart({ items: [], subtotal: 0, tax: 0, total: 0 });
       setPaid({ confirmation: data.data, method: paymentMethod });
       setShowModal(true);
     } catch (err) {
@@ -150,10 +150,36 @@ function CartPage() {
 
   return (
     <div>
-      <h1 className="page-heading">
-        Your Cart
-        {itemCount > 0 && <span className="page-count">({itemCount})</span>}
-      </h1>
+      <div className="orders-hero">
+        <div className="orders-hero-icon">🛒</div>
+        <div className="orders-hero-main">
+          <div className="orders-hero-title-row">
+            <h1>Your Cart</h1>
+            <span className="demand-live-badge">
+              <span className="live-dot" /> Ready
+            </span>
+          </div>
+          <p className="live-hint">
+            Review your items, pick a pickup slot, and check out.
+          </p>
+        </div>
+        {items.length > 0 && (
+          <div className="orders-stats">
+            <div className="orders-stat">
+              <strong>{itemCount}</strong>
+              <span>Items</span>
+            </div>
+            <div className="orders-stat">
+              <strong>₹{subtotal.toFixed(2)}</strong>
+              <span>Subtotal</span>
+            </div>
+            <div className="orders-stat orders-stat-rated">
+              <strong>₹{total.toFixed(2)}</strong>
+              <span>Total</span>
+            </div>
+          </div>
+        )}
+      </div>
       {error && <p className="auth-error">{error}</p>}
 
       {items.length === 0 ? (
@@ -173,13 +199,6 @@ function CartPage() {
       ) : (
         <div className="cart-layout">
           <div className="cart-main">
-            <div className="cart-banner">
-              <span className="cart-banner-icon">⚡</span>
-              <div>
-                <strong>Quick pickup</strong>
-                <p>Your order will be ready in minutes — get pinged the moment it is ready for pickup.</p>
-              </div>
-            </div>
             <ul className="cart-list">
               {items.map((i) => (
                 <li key={i.foodItem._id} className="cart-item">
@@ -299,91 +318,82 @@ function CartPage() {
         </div>
       )}
 
-      {paid && showModal && (
-        <div className="pay-overlay">
-          <div className="pay-modal" onClick={(e) => e.stopPropagation()}>
-            <div className={`pay-tick${paid.method === 'cash' ? ' pay-tick-cash' : ''}`}>
-              {paid.method === 'cash' ? (
-                <span className="pay-cash">₹</span>
-              ) : (
-                <svg viewBox="0 0 52 52">
-                  <circle cx="26" cy="26" r="25" fill="none" />
-                  <path fill="none" d="M14 27l8 8 16-16" />
-                </svg>
-              )}
-            </div>
+      {paid && showModal && (() => {
+        const confToken = paid.confirmation.token || {};
+        const confOrder = paid.confirmation.order || {};
+        const tokenNumber = confToken.tokenNumber ?? confOrder.tokenNumber;
+        const waitMin = confToken.estimatedWaitMin ?? confOrder.estimatedWaitMin;
+        const position = confToken.position ?? confOrder.queuePosition;
+        const amountPaid = confOrder.total != null ? confOrder.total : total;
 
-            {paid.method === 'cash' ? (
-              <>
-                <h2 className="pay-title">Order Placed</h2>
-                <p className="pay-sub">
-                  Pay <strong>₹{total.toFixed(2)}</strong> in cash at the counter when you collect your order.
-                </p>
-              </>
-            ) : (
-              <>
-                <h2 className="pay-title">Payment Successful</h2>
-                <p className="pay-sub">
-                  Paid <strong>₹{total.toFixed(2)}</strong> via{' '}
-                  {paid.method === 'upi' ? 'UPI' : 'Card'}
-                </p>
-              </>
-            )}
-
-            {paid.method !== 'cash' && (
-              <div className="poppers" aria-hidden="true">
-                <span className="popper" /><span className="popper" /><span className="popper" />
-                <span className="popper" /><span className="popper" /><span className="popper" />
-                <span className="popper" /><span className="popper" /><span className="popper" />
-                <span className="popper" /><span className="popper" /><span className="popper" />
+        return (
+          <div className="pay-overlay" onClick={() => setShowModal(false)}>
+            <div className="pay-modal" onClick={(e) => e.stopPropagation()}>
+              <button className="pay-modal-close" onClick={() => setShowModal(false)} aria-label="Dismiss">×</button>
+              <div className={`pay-tick${paid.method === 'cash' ? ' pay-tick-cash' : ''}`}>
+                {paid.method === 'cash' ? (
+                  <span className="pay-cash">₹</span>
+                ) : (
+                  <svg viewBox="0 0 52 52">
+                    <circle cx="26" cy="26" r="25" fill="none" />
+                    <path fill="none" d="M14 27l8 8 16-16" />
+                  </svg>
+                )}
               </div>
-            )}
 
-            <p className="pay-auto-note">
-              Preparing your order details…
-              <span className="pay-auto-bar"><span /></span>
-            </p>
-          </div>
-        </div>
-      )}
+              <h2 className="pay-title">
+                {paid.method === 'cash' ? 'Order Placed' : 'Payment Successful'}
+              </h2>
+              <p className="pay-sub">
+                {paid.method === 'cash' ? (
+                  <>Pay <strong>₹{Number(amountPaid).toFixed(2)}</strong> in cash at the counter when you collect your order.</>
+                ) : (
+                  <>Paid <strong>₹{Number(amountPaid).toFixed(2)}</strong> via {paid.method === 'upi' ? 'UPI' : 'Card'}</>
+                )}
+              </p>
 
-      {toast && (
-        <div className="order-toast" role="status">
-          <div className="order-toast-head">
-            <span className="order-toast-title">
-              {toast.method === 'cash' ? 'Order placed' : 'Payment successful'} ✓
-            </span>
-            <button className="order-toast-close" onClick={() => setToast(null)} aria-label="Dismiss">
-              ×
-            </button>
+              {paid.method !== 'cash' && (
+                <div className="poppers" aria-hidden="true">
+                  <span className="popper" /><span className="popper" /><span className="popper" />
+                  <span className="popper" /><span className="popper" /><span className="popper" />
+                  <span className="popper" /><span className="popper" /><span className="popper" />
+                  <span className="popper" /><span className="popper" /><span className="popper" />
+                </div>
+              )}
+
+              <div className="pay-confirm">
+                <div className="pay-confirm-row">
+                  <span>Token</span>
+                  <strong className="pay-confirm-token">🎟️ #{tokenNumber ?? '—'}</strong>
+                </div>
+                <div className="pay-confirm-row">
+                  <span>Estimated wait</span>
+                  <strong className="pay-confirm-wait">⏱️ {waitMin ?? '—'} min</strong>
+                </div>
+                <div className="pay-confirm-row">
+                  <span>Queue position</span>
+                  <strong>#{position ?? '—'}</strong>
+                </div>
+                <div className="pay-confirm-row">
+                  <span>Pickup slot</span>
+                  <strong className="pay-confirm-slot">🕒 {confirmedSlot}</strong>
+                </div>
+                <div className="pay-confirm-row pay-confirm-total">
+                  <span>{paid.method === 'cash' ? 'Amount to pay' : 'Amount paid'}</span>
+                  <strong>₹{Number(amountPaid).toFixed(2)}</strong>
+                </div>
+              </div>
+
+              <button className="pay-cta" onClick={continueToQueue}>
+                Track My Order <span>→</span>
+              </button>
+              <button className="pay-continue" onClick={() => setShowModal(false)}>
+                Continue browsing
+              </button>
+            </div>
           </div>
-          <div className="order-toast-body">
-            <div className="order-toast-row">
-              <span>Token</span>
-              <strong>#{toast.confirmation.token.tokenNumber}</strong>
-            </div>
-            <div className="order-toast-row">
-              <span>Items</span>
-              <span className="order-toast-items">
-                {items.map((i) => (
-                  <span key={i.foodItem._id}>{i.foodItem.name} × {i.qty}</span>
-                ))}
-              </span>
-            </div>
-            <div className="order-toast-row">
-              <span>Pickup slot</span>
-              <strong className="order-toast-slot">🕒 {confirmedSlot}</strong>
-            </div>
-            <div className="order-toast-row order-toast-total">
-              <span>{toast.method === 'cash' ? 'Amount to pay' : 'Amount paid'}</span>
-              <strong>₹{total.toFixed(2)}</strong>
-            </div>
-          </div>
-          <button className="order-toast-cta" onClick={continueToQueue}>
-            Track My Order <span>→</span>
-          </button>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

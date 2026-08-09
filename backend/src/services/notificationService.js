@@ -3,7 +3,7 @@ import User from '../models/User.js';
 import { sendPush } from './fcm.js';
 
 export const notifyUser = async ({ userId, title, body, type = 'order', data = {} }) => {
-  const notification = await Notification.create({ user: userId, title, body, type });
+  const notification = await Notification.create({ user: userId, title, body, type, data });
 
   // In-app socket push to any live sessions of this user.
   const { default: app } = await import('../app.js');

@@ -49,6 +49,16 @@ const finalizeOrder = async (orderId, userId) => {
     userId,
     title: `Order placed #${token.tokenNumber}`,
     body: `Your estimated wait is ${token.estimatedWaitMin} min. Token: ${token.tokenNumber}`,
+    data: {
+      orderId: String(order._id),
+      status: 'placed',
+      tokenNumber: token.tokenNumber,
+      estimatedWaitMin: token.estimatedWaitMin,
+      pickupSlot: order.pickupSlot,
+      total: order.total,
+      paymentMethod: order.paymentMethod,
+      items: order.items.map((i) => ({ name: i.name, qty: i.qty })),
+    },
   });
 
   return { order, token };

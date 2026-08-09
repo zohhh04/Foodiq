@@ -6,6 +6,7 @@ const notificationSchema = new mongoose.Schema(
     title: { type: String, required: true },
     body: { type: String },
     type: { type: String, default: 'order' },
+    data: { type: mongoose.Schema.Types.Mixed, default: {} },
     read: { type: Boolean, default: false },
   },
   { timestamps: true }

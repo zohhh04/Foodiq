@@ -8,7 +8,18 @@ const NEXT_TOKEN_KEY = 'foodiq:next-token';
 
 // In-memory fallback when Redis is down
 let memoryQueue = [];
-let memoryNextToken = 1;
+let memoryNextToken = 0;
+let memorySeeded = false;
+
+// Highest token number ever issued, so the counter never reuses a number
+// even after a restart or a Redis flush.
+const getMaxIssuedToken = async () => {
+  const [order, token] = await Promise.all([
+    Order.findOne().sort({ tokenNumber: -1 }).select('tokenNumber').lean(),
+    QueueToken.findOne().sort({ tokenNumber: -1 }).select('tokenNumber').lean(),
+  ]);
+  return Math.max(order?.tokenNumber || 0, token?.tokenNumber || 0);
+};
 
 const withRedis = async (fn) => {
   const redis = getRedis();
@@ -23,8 +34,19 @@ const withRedis = async (fn) => {
 };
 
 export const getNextToken = async () => {
-  const result = await withRedis(async (r) => (await r.incr(NEXT_TOKEN_KEY)).toString());
+  const result = await withRedis(async (r) => {
+    const exists = await r.exists(NEXT_TOKEN_KEY);
+    if (!exists) {
+      const maxToken = await getMaxIssuedToken();
+      await r.set(NEXT_TOKEN_KEY, String(maxToken));
+    }
+    return (await r.incr(NEXT_TOKEN_KEY)).toString();
+  });
   if (result.ok) return Number(result.value);
+  if (!memorySeeded) {
+    memoryNextToken = (await getMaxIssuedToken()) + 1;
+    memorySeeded = true;
+  }
   return memoryNextToken++;
 };
 
@@ -166,6 +188,7 @@ export const setTokenStatus = async (orderId, status) => {
     { new: true }
   );
   if (!token) return null;
-  await Order.findByIdAndUpdate(orderId, { status });
+  const orderStatus = status === 'picked' ? 'completed' : status;
+  await Order.findByIdAndUpdate(orderId, { status: orderStatus });
   return token;
 };

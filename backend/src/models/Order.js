@@ -35,5 +35,6 @@ const orderSchema = new mongoose.Schema(
 
 orderSchema.index({ user: 1, createdAt: -1 });
 orderSchema.index({ status: 1, createdAt: 1 });
+orderSchema.index({ tokenNumber: 1 }, { unique: true, sparse: true });
 
 export default mongoose.model('Order', orderSchema);

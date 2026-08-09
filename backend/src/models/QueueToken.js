@@ -15,4 +15,6 @@ const queueTokenSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+queueTokenSchema.index({ tokenNumber: 1 }, { unique: true });
+
 export default mongoose.model('QueueToken', queueTokenSchema);

@@ -56,6 +56,9 @@ export const markReady = asyncHandler(async (req, res) => {
   const token = await setTokenStatus(orderId, 'ready');
   if (!token) throw new Error('Token not found for this order');
 
+  const { default: Order } = await import('../models/Order.js');
+  const order = await Order.findById(orderId);
+
   const io = req.app.get('io');
   if (io) {
     io.to(`order:${orderId}`).emit('order:status', {
@@ -66,27 +69,38 @@ export const markReady = asyncHandler(async (req, res) => {
     await broadcastQueueUpdate(io);
   }
 
-  const { default: Order } = await import('../models/Order.js');
-  const order = await Order.findById(orderId);
   if (order?.user) {
     await notifyUser({
       userId: order.user,
-      title: `Token ${token.tokenNumber} is ready!`,
-      body: 'Your food is ready for pickup at the counter.',
+      title: `Order ${order.tokenNumber ?? token.tokenNumber} is ready`,
+      body: `Token ${token.tokenNumber} is ready for pickup at the counter.`,
       type: 'order',
-      data: { orderId, status: 'ready', tokenNumber: token.tokenNumber },
+      data: {
+        orderId: String(orderId),
+        status: 'ready',
+        tokenNumber: token.tokenNumber,
+        pickupSlot: order.pickupSlot,
+        total: order.total,
+        paymentMethod: order.paymentMethod,
+        items: order.items.map((i) => ({ name: i.name, qty: i.qty })),
+      },
     });
   }
 
   success(res, token, `Token ${token.tokenNumber} marked ready`);
 });
 
-// Staff: mark a token as picked up (completes the order).
+// Staff: mark a token as picked up (completes the order and removes it from the queue).
 export const markPicked = asyncHandler(async (req, res) => {
   const { orderId } = req.params;
   const token = await setTokenStatus(orderId, 'picked');
   if (!token) throw new Error('Token not found for this order');
 
+  const { default: Order } = await import('../models/Order.js');
+  const { removeFromQueue } = await import('../services/queueService.js');
+  await removeFromQueue(orderId);
+
+  const order = await Order.findById(orderId);
   const io = req.app.get('io');
   if (io) {
     io.to(`order:${orderId}`).emit('order:status', {
@@ -95,6 +109,25 @@ export const markPicked = asyncHandler(async (req, res) => {
       tokenNumber: token.tokenNumber,
     });
     await broadcastQueueUpdate(io);
+  }
+
+  if (order?.user) {
+    await notifyUser({
+      userId: order.user,
+      title: `Order ${order.tokenNumber ?? token.tokenNumber} is completed`,
+      body: `Your order (Token ${token.tokenNumber}) has been picked up. Enjoy your meal! 🎉`,
+      type: 'order',
+      data: {
+        orderId: String(orderId),
+        status: 'completed',
+        tokenNumber: token.tokenNumber,
+        pickupSlot: order.pickupSlot,
+        total: order.total,
+        paymentMethod: order.paymentMethod,
+        completedAt: order.updatedAt,
+        items: order.items.map((i) => ({ name: i.name, qty: i.qty })),
+      },
+    });
   }
 
   success(res, token, `Token ${token.tokenNumber} picked up`);

@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { Routes, Route, Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { NotificationProvider } from './context/NotificationContext.jsx';
 import { CartProvider, useCart } from './context/CartContext.jsx';
+import { ThemeProvider } from './context/ThemeContext.jsx';
 import HomePage from './pages/HomePage.jsx';
 import MenuPage from './pages/MenuPage.jsx';
 import CartPage from './pages/CartPage.jsx';
@@ -16,7 +18,10 @@ import ProfilePage from './pages/ProfilePage.jsx';
 import OrdersPage from './pages/OrdersPage.jsx';
 import FavoritesPage from './pages/FavoritesPage.jsx';
 import RatingPage from './pages/RatingPage.jsx';
-import MyRatingsPage from './pages/MyRatingsPage.jsx';
+import LiveTrackingPage from './pages/LiveTrackingPage.jsx';
+import NotificationBell from './components/NotificationBell.jsx';
+import ThemeToggle from './components/ThemeToggle.jsx';
+import AiAssistant from './components/AiAssistant.jsx';
 import AdminOrdersPage from './pages/AdminOrdersPage.jsx';
 import AdminOrderReadyPage from './pages/AdminOrderReadyPage.jsx';
 import AdminOrderCompletedPage from './pages/AdminOrderCompletedPage.jsx';
@@ -28,59 +33,71 @@ function Navbar() {
   const { user, logout } = useAuth();
   const { cartCount } = useCart();
   const navigate = useNavigate();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const closeMenu = () => setMenuOpen(false);
+  const handleLogout = (e) => {
+    e.preventDefault();
+    closeMenu();
+    logout();
+    navigate('/logout');
+  };
 
   return (
     <nav className="navbar">
-      <Link to="/" className="brand">
+      <Link to="/" className="brand" onClick={closeMenu}>
         <span className="brand-logo" aria-hidden="true">🍽️</span>
         Foodiq
       </Link>
-      <div className="nav-links">
+      <button
+        className={`nav-hamburger${menuOpen ? ' is-open' : ''}`}
+        onClick={() => setMenuOpen((v) => !v)}
+        aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+        aria-expanded={menuOpen}
+      >
+        <span />
+        <span />
+        <span />
+      </button>
+      <div className={`nav-links${menuOpen ? ' is-open' : ''}`}>
         {user ? (
           user.role === 'admin' ? (
             <>
-              <NavLink to="/admin/orders">Orders</NavLink>
-              <NavLink to="/admin/order-ready">Order Ready</NavLink>
-              <NavLink to="/admin/order-completed">Order Completed</NavLink>
-              <NavLink to="/admin/demand">Demand Analysis</NavLink>
-              <a
-                href="#logout"
-                onClick={(e) => {
-                  e.preventDefault();
-                  logout();
-                  navigate('/logout');
-                }}
-              >
+              <NavLink to="/admin/orders" onClick={closeMenu}>Orders</NavLink>
+              <NavLink to="/admin/order-ready" onClick={closeMenu}>Order Ready</NavLink>
+              <NavLink to="/admin/order-completed" onClick={closeMenu}>Order Completed</NavLink>
+              <NavLink to="/admin/demand" onClick={closeMenu}>Demand Analysis</NavLink>
+              <div className="nav-tools">
+                <ThemeToggle />
+              </div>
+              <a href="#logout" onClick={handleLogout}>
                 Logout
               </a>
             </>
           ) : (
             <>
-              <NavLink to="/menu">Menu</NavLink>
-              <NavLink to="/cart" className="cart-link">
+              <NavLink to="/menu" onClick={closeMenu}>Menu</NavLink>
+              <NavLink to="/cart" className="cart-link" onClick={closeMenu}>
                 Cart
                 {cartCount > 0 && <span className="nav-badge">{cartCount}</span>}
               </NavLink>
-              <NavLink to="/queue">Queue</NavLink>
-              <NavLink to="/orders">Orders</NavLink>
-              <NavLink to="/ratings">Ratings</NavLink>
-              <NavLink to="/favorites">Favorites</NavLink>
-              <a
-                href="#logout"
-                onClick={(e) => {
-                  e.preventDefault();
-                  logout();
-                  navigate('/logout');
-                }}
-              >
+              <NavLink to="/queue" onClick={closeMenu}>Queue</NavLink>
+              <NavLink to="/orders" onClick={closeMenu}>Orders</NavLink>
+              <NavLink to="/tracking" onClick={closeMenu}>Live Tracking</NavLink>
+              <NavLink to="/favorites" onClick={closeMenu}>Favorites</NavLink>
+              <div className="nav-tools">
+                <NotificationBell />
+                <ThemeToggle />
+              </div>
+              <a href="#logout" onClick={handleLogout}>
                 Logout
               </a>
             </>
           )
         ) : (
           <>
-            <NavLink to="/login">Login</NavLink>
-            <NavLink to="/register">Register</NavLink>
+            <NavLink to="/login" onClick={closeMenu}>Login</NavLink>
+            <NavLink to="/register" onClick={closeMenu}>Register</NavLink>
           </>
         )}
       </div>
@@ -140,10 +157,10 @@ function AppRoutes() {
             }
           />
           <Route
-            path="/ratings"
+            path="/tracking"
             element={
               <ProtectedRoute>
-                <MyRatingsPage />
+                <LiveTrackingPage />
               </ProtectedRoute>
             }
           />
@@ -189,19 +206,22 @@ function AppRoutes() {
           />
         </Routes>
       </main>
+      <AiAssistant />
     </div>
   );
 }
 
 function App() {
   return (
-    <AuthProvider>
-      <NotificationProvider>
-        <CartProvider>
-          <AppRoutes />
-        </CartProvider>
-      </NotificationProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <NotificationProvider>
+          <CartProvider>
+            <AppRoutes />
+          </CartProvider>
+        </NotificationProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 
