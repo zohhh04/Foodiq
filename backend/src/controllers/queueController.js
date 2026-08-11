@@ -90,7 +90,9 @@ export const markReady = asyncHandler(async (req, res) => {
   success(res, token, `Token ${token.tokenNumber} marked ready`);
 });
 
-// Staff: mark a token as picked up (completes the order and removes it from the queue).
+// Staff: mark a token as picked up. The order becomes 'delivered' (picked up,
+// awaiting the student's rating) and leaves the queue. It only reaches
+// 'completed' once the student rates it.
 export const markPicked = asyncHandler(async (req, res) => {
   const { orderId } = req.params;
   const token = await setTokenStatus(orderId, 'picked');
@@ -105,7 +107,7 @@ export const markPicked = asyncHandler(async (req, res) => {
   if (io) {
     io.to(`order:${orderId}`).emit('order:status', {
       orderId,
-      status: 'completed',
+      status: 'delivered',
       tokenNumber: token.tokenNumber,
     });
     await broadcastQueueUpdate(io);
@@ -114,17 +116,17 @@ export const markPicked = asyncHandler(async (req, res) => {
   if (order?.user) {
     await notifyUser({
       userId: order.user,
-      title: `Order ${order.tokenNumber ?? token.tokenNumber} is completed`,
-      body: `Your order (Token ${token.tokenNumber}) has been picked up. Enjoy your meal! 🎉`,
+      title: `Order ${order.tokenNumber ?? token.tokenNumber} has been picked up`,
+      body: `Your order (Token ${token.tokenNumber}) has been picked up. Enjoy your meal! Please rate your experience. ⭐`,
       type: 'order',
       data: {
         orderId: String(orderId),
-        status: 'completed',
+        status: 'delivered',
         tokenNumber: token.tokenNumber,
         pickupSlot: order.pickupSlot,
         total: order.total,
         paymentMethod: order.paymentMethod,
-        completedAt: order.updatedAt,
+        deliveredAt: order.updatedAt,
         items: order.items.map((i) => ({ name: i.name, qty: i.qty })),
       },
     });

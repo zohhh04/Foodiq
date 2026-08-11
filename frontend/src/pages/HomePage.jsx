@@ -128,7 +128,7 @@ const FAQS = [
   },
   {
     q: 'How shall I rate my order?',
-    a: 'Once your order is completed, you can rate it with stars and a comment. Your feedback not only helps other customers pick better dishes, it also feeds the AI recommendation engine so your future suggestions keep getting sharper.',
+    a: 'Once you pick up your order, you can rate it with stars and a comment. Rating it marks your order as completed in the canteen\u2019s records. Your feedback not only helps other customers pick better dishes, it also feeds the AI recommendation engine so your future suggestions keep getting sharper.',
   },
   {
     q: 'Can I cancel an order?',
@@ -253,6 +253,7 @@ function HomePage() {
   const [queue, setQueue] = useState([]);
   const [categories, setCategories] = useState([]);
   const [catCounts, setCatCounts] = useState({});
+  const [catImages, setCatImages] = useState({});
   const [openFaq, setOpenFaq] = useState(0);
 
   useEffect(() => {
@@ -269,13 +270,21 @@ function HomePage() {
       .then((res) => {
         const items = res.data.data || [];
         const counts = {};
+        const images = {};
         items.forEach((it) => {
           const id = it.category?._id || it.category;
-          if (id) counts[id] = (counts[id] || 0) + 1;
+          if (id) {
+            counts[id] = (counts[id] || 0) + 1;
+            if (!images[id] && it.image) images[id] = it.image;
+          }
         });
         setCatCounts(counts);
+        setCatImages(images);
       })
-      .catch(() => setCatCounts({}));
+      .catch(() => {
+        setCatCounts({});
+        setCatImages({});
+      });
   }, []);
 
   const nextUp = queue[0] || null;
@@ -498,8 +507,12 @@ function HomePage() {
                   {String(idx + 1).padStart(2, '0')}
                 </span>
                 <div className="category-card-img">
-                  {cat.image ? (
-                    <img src={cat.image} alt={cat.name} loading="lazy" />
+                  {catImages[cat._id] || cat.image ? (
+                    <img
+                      src={catImages[cat._id] || cat.image}
+                      alt={cat.name}
+                      loading="lazy"
+                    />
                   ) : (
                     <span className="menu-card-img-fallback">{cat.name.charAt(0)}</span>
                   )}

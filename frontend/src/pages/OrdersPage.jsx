@@ -4,6 +4,7 @@ import api from '../api/client.js';
 import { getSocket } from '../socket.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import RatingStars from '../components/RatingStars.jsx';
+import ItemThumb from '../components/ItemThumb.jsx';
 
 function OrdersPage() {
   const { user } = useAuth();
@@ -136,13 +137,15 @@ function OrdersPage() {
                     {o.status}
                   </span>
                 </div>
-                <ul className="order-items">
+                <ul className="order-items lt-items-grid">
                   {o.items.map((it, idx) => (
                     <li key={idx}>
-                      <span>
-                        {it.qty}× {it.name}
+                      <ItemThumb image={it.foodItem?.image} name={it.name} />
+                      <span className="lt-item-name">
+                        <strong>{it.name}</strong>
+                        <small>{it.qty}×</small>
                       </span>
-                      <span>₹{(it.price * it.qty).toFixed(2)}</span>
+                      <span className="lt-item-price">₹{(it.price * it.qty).toFixed(2)}</span>
                     </li>
                   ))}
                 </ul>
@@ -165,10 +168,15 @@ function OrdersPage() {
                   {rated ? (
                     <div className="order-rated-chip">
                       <span className="order-rated-tick">✓</span>
-                      <RatingStars value={rated.rating} size="sm" />
-                      <span className="order-rated-label">Rated</span>
+                      <span className="order-rated-meta">
+                        <span className="order-rated-stars">
+                          <RatingStars value={rated.rating} size="sm" />
+                          <strong>{rated.rating}.0</strong>
+                        </span>
+                        <span className="order-rated-label">You rated this order</span>
+                      </span>
                     </div>
-                  ) : o.status === 'completed' ? (
+                  ) : o.status === 'delivered' || o.status === 'completed' ? (
                     <Link
                       to={`/rate/${o._id}`}
                       className="btn btn-primary shine"
@@ -184,6 +192,7 @@ function OrdersPage() {
                       ⭐ You can rate after pickup
                     </span>
                   )}
+                  {rated?.comment && <p className="order-rated-comment">“{rated.comment}”</p>}
                 </div>
               </li>
             );

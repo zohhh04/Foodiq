@@ -6,6 +6,7 @@ const NOTIF_ICONS = {
   confirmed: '✅',
   preparing: '👨‍🍳',
   ready: '🛎️',
+  delivered: '🛍️',
   completed: '🎉',
   cancelled: '❌',
   order: '🔔',

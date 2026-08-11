@@ -5,6 +5,7 @@ import {
   getMenu,
   getMenuItem,
   getRecommendations,
+  getRecommendationInsights,
   createCategory,
   updateCategory,
   deleteCategory,
@@ -17,7 +18,8 @@ const router = Router();
 
 router.get('/categories', getCategories);
 router.get('/menu', getMenu);
-router.get('/recommendations', protect, getRecommendations);
+router.get('/menu/recommendations', protect, getRecommendations);
+router.get('/menu/insights', protect, getRecommendationInsights);
 router.get('/menu/:id', getMenuItem);
 
 router.post('/categories', protect, authorize('admin'), createCategory);

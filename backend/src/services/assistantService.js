@@ -293,7 +293,7 @@ const KB = [
     ],
     words: ['rate', 'rating', 'review'],
     answer:
-      'Once your order is completed you can rate it from My Orders — tap "Rate this order", pick 1-5 stars, and optionally add a comment. Your feedback directly shapes the menu, and top-rated dishes are highlighted for everyone.',
+      'Once you pick up your order you can rate it from My Orders — tap "Rate this order", pick 1-5 stars, and optionally add a comment. Your feedback directly shapes the menu, and top-rated dishes are highlighted for everyone. Rating a picked-up order also marks it completed in the kitchen\'s records.',
     suggestions: ['Where do I see my ratings?', 'How do I order?'],
   },
   {
@@ -512,14 +512,14 @@ const KB = [
     id: 'schedule',
     keys: ['book later', 'schedule order', 'order later', 'order in advance', 'advance booking', 'preorder', 'pre order', 'future order', 'schedule pickup', 'later time'],
     answer:
-      'Yes — when you check out, pick a pickup slot: ASAP, within 30 min, 1 hour, 1.5 hours, or a custom time range. Your food is timed to be ready when you arrive.',
+      'Yes — when you check out, pick a pickup slot: within 30 min, 1 hour, 1.5 hours, or a custom time range. Your food is timed to be ready when you arrive.',
     suggestions: ['Where do I collect my order?', 'How do I order?'],
   },
   {
     id: 'emergency',
-    keys: ['urgent', 'emergency', 'asap', 'right now', 'immediately', 'quick as possible', 'hurry', 'fast as possible', 'soonest'],
+    keys: ['urgent', 'emergency', 'right now', 'immediately', 'hurry', 'fast as possible', 'soonest'],
     answer:
-      'Pick the "Quick pickup (ASAP)" slot at checkout and your order jumps to the front of the queue. Head to the counter — the queue page shows your live position so you know exactly when to go.',
+      'Pick the earliest pickup slot at checkout (within 30 min) and head to the counter — the queue page shows your live position so you know exactly when to go.',
     suggestions: ['Track my order', 'What is a token?'],
   },
   {
@@ -581,7 +581,7 @@ const KB = [
     ],
     words: ['admin', 'ready', 'confirm', 'status', 'prepare'],
     answer:
-      'Use the Orders page for a live list. Each card shows the token, customer, items and total. Advance an order by tapping the action on its card: Confirm -> Start preparing -> Mark ready -> Order Picked Up. Marking an order ready instantly pings the student with a notification and moves it to Order Ready. New orders appear here in real time as students pay.',
+      'Use the Orders page for a live list. Each card shows the token, customer, items and total. Advance an order by tapping the action on its card: Confirm -> Start preparing -> Mark ready -> Order Picked Up. Marking an order ready instantly pings the student with a notification and moves it to Order Ready. Once the student picks up, the order becomes "picked up" and only lands on Order Completed after the student rates it.',
     suggestions: ['How do I mark an order ready?', 'What if an order is cancelled?', 'How do I view demand?'],
   },
   {
@@ -609,7 +609,7 @@ const KB = [
     ],
     words: ['ready', 'completed'],
     answer:
-      'Order Ready holds every order whose food is ready for pickup — students are notified the moment an order lands there. The student collects at the counter and you tap "Order Picked Up" to complete it; it then moves to Order Completed, which is the permanent history of finished orders.',
+      'Order Ready holds every order whose food is ready for pickup — students are notified the moment an order lands there. The student collects at the counter and you tap "Order Picked Up". The order is then marked as picked up, and it only moves to Order Completed once the student rates it — with the rating stars and feedback shown right on the card.',
     suggestions: ['How do I mark an order ready?', 'How do I view demand?'],
   },
   {

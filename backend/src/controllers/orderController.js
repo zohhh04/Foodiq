@@ -65,7 +65,11 @@ const finalizeOrder = async (orderId, userId) => {
 };
 
 export const createOrder = asyncHandler(async (req, res) => {
-  const { paymentMethod = 'upi', pickupSlot = 'Quick pickup (ASAP)' } = req.body;
+  const {
+    paymentMethod = 'upi',
+    pickupSlot = 'Within 30 min',
+    pickupSlotAt,
+  } = req.body;
   const cart = await Cart.findOne({ user: req.user._id }).populate('items.foodItem');
 
   if (!cart || cart.items.length === 0) throw new ApiError(400, 'Cart is empty');
@@ -90,6 +94,7 @@ export const createOrder = asyncHandler(async (req, res) => {
     paymentStatus: 'pending',
     paymentMethod,
     pickupSlot,
+    pickupSlotAt: pickupSlotAt ? new Date(pickupSlotAt) : undefined,
   });
 
   const payment = await createPaymentOrder({
@@ -139,7 +144,9 @@ export const confirmPayment = asyncHandler(async (req, res) => {
 });
 
 export const getMyOrders = asyncHandler(async (req, res) => {
-  const orders = await Order.find({ user: req.user._id }).sort({ createdAt: -1 });
+  const orders = await Order.find({ user: req.user._id })
+    .populate('items.foodItem', 'name image')
+    .sort({ createdAt: -1 });
   success(res, orders);
 });
 
@@ -147,12 +154,13 @@ export const getAllOrders = asyncHandler(async (req, res) => {
   const { status } = req.query;
   const filter = {};
   if (status) {
-    const allowed = ['placed', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled'];
+    const allowed = ['placed', 'confirmed', 'preparing', 'ready', 'delivered', 'completed', 'cancelled'];
     if (!allowed.includes(status)) throw new ApiError(400, 'Invalid status filter');
     filter.status = status;
   }
   const orders = await Order.find(filter)
     .populate('user', 'name email phone role')
+    .populate('items.foodItem', 'name image')
     .sort({ createdAt: -1 });
   success(res, orders);
 });
@@ -174,14 +182,15 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
   if (!order) throw new ApiError(404, 'Order not found');
 
   // Keep the queue token in sync when staff moves the order along.
-  const tokenStatusMap = { preparing: 'preparing', ready: 'ready', completed: 'picked' };
+  const tokenStatusMap = { preparing: 'preparing', ready: 'ready', delivered: 'picked', completed: 'picked' };
   if (tokenStatusMap[status]) {
     const { default: QueueToken } = await import('../models/QueueToken.js');
     await QueueToken.findOneAndUpdate({ order: order._id }, { status: tokenStatusMap[status] });
   }
 
-  // Once completed, the order leaves the live queue and moves to the order history.
-  if (status === 'completed') {
+  // Once picked up (delivered), the order leaves the live queue. It only reaches
+  // 'completed' once the student rates it, so it is removed from the queue here.
+  if (status === 'delivered' || status === 'completed') {
     const { removeFromQueue } = await import('../services/queueService.js');
     await removeFromQueue(order._id);
   }
@@ -208,9 +217,11 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
       body:
         status === 'ready'
           ? `Token ${order.tokenNumber} is ready for pickup at the counter.`
-          : status === 'completed'
-            ? `Your order (Token ${order.tokenNumber}) has been picked up. Enjoy your meal! 🎉`
-            : 'Your food is on the way! Check the live queue for your token.',
+          : status === 'delivered'
+            ? `Your order (Token ${order.tokenNumber}) has been picked up. Enjoy your meal! Please rate your experience. ⭐`
+            : status === 'completed'
+              ? `Your order (Token ${order.tokenNumber}) is complete. Thanks for rating! 🎉`
+              : 'Your food is on the way! Check the live queue for your token.',
       type: 'order',
       data: {
         orderId: String(order._id),

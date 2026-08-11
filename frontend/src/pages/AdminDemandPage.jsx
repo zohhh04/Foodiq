@@ -6,6 +6,7 @@ const STATUS_LABELS = {
   confirmed: 'Confirmed',
   preparing: 'Preparing',
   ready: 'Ready',
+  delivered: 'Delivered',
   completed: 'Completed',
   cancelled: 'Cancelled',
 };
@@ -15,11 +16,12 @@ const STATUS_COLORS = {
   confirmed: '#22d3ee',
   preparing: '#f59e0b',
   ready: '#3b82f6',
+  delivered: '#f472b6',
   completed: '#8b5cf6',
   cancelled: '#f87171',
 };
 
-const STATUS_ORDER = ['placed', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled'];
+const STATUS_ORDER = ['placed', 'confirmed', 'preparing', 'ready', 'delivered', 'completed', 'cancelled'];
 
 const RADIUS = 70;
 const CIRC = 2 * Math.PI * RADIUS;

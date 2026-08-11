@@ -19,10 +19,10 @@ const ADMIN_SUGGESTIONS = [
 ];
 
 const SLOT_OPTIONS = [
-  { value: 'asap', label: 'Quick pickup (ASAP)' },
   { value: '30', label: 'Within 30 min' },
   { value: '60', label: 'Within 1 hour' },
   { value: '90', label: 'Within 1.5 hours' },
+  { value: 'custom', label: 'Custom time slot' },
 ];
 
 const isQuestion = (q) => /^(how|what|where|when|why|which)\b/i.test(q.trim());

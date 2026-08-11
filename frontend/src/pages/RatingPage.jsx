@@ -154,11 +154,11 @@ function RatingPage() {
           </div>
         </div>
 
-        {order && order.status !== 'completed' ? (
+        {order && !['delivered', 'completed'].includes(order.status) ? (
           <div className="rating-waiting">
             <div className="rating-spinner" aria-hidden="true" />
             <p>
-              This order is <strong>{order.status}</strong>. You can rate it once it's completed.
+              This order is <strong>{order.status}</strong>. You can rate it once it's been picked up.
             </p>
             <p className="rating-waiting-hint">This page updates live — no refreshing needed.</p>
             <Link to="/orders" className="rating-back">← Back to my orders</Link>

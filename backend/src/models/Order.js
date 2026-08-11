@@ -16,7 +16,7 @@ const orderSchema = new mongoose.Schema(
     total: { type: Number, required: true },
     status: {
       type: String,
-      enum: ['placed', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled'],
+      enum: ['placed', 'confirmed', 'preparing', 'ready', 'delivered', 'completed', 'cancelled'],
       default: 'placed',
     },
     paymentStatus: {
@@ -25,7 +25,8 @@ const orderSchema = new mongoose.Schema(
       default: 'pending',
     },
     paymentMethod: { type: String, enum: ['upi', 'card', 'cash'], default: 'upi' },
-    pickupSlot: { type: String, default: 'Quick pickup (ASAP)' },
+    pickupSlot: { type: String, default: 'Within 30 min' },
+    pickupSlotAt: { type: Date },
     tokenNumber: { type: Number },
     queuePosition: { type: Number },
     estimatedWaitMin: { type: Number },

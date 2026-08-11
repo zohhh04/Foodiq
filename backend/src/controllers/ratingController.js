@@ -10,14 +10,15 @@ export const createRating = asyncHandler(async (req, res) => {
   const { order, foodItem, rating, comment } = req.body;
   if (!rating || rating < 1 || rating > 5) throw new ApiError(400, 'Rating must be 1-5');
 
-  // The rated order must belong to the user and be completed.
+  // The rated order must belong to the user and have been picked up (delivered)
+  // or completed. Rating a delivered order completes it.
   const targetOrder = await Order.findById(order);
   if (!targetOrder) throw new ApiError(404, 'Order not found');
   if (String(targetOrder.user) !== String(req.user._id)) {
     throw new ApiError(403, 'Not authorized to rate this order');
   }
-  if (targetOrder.status !== 'completed') {
-    throw new ApiError(400, 'Only completed orders can be rated');
+  if (!['delivered', 'completed'].includes(targetOrder.status)) {
+    throw new ApiError(400, 'Only picked-up orders can be rated');
   }
 
   // If rating a specific item, it must be part of the order.
@@ -30,6 +31,29 @@ export const createRating = asyncHandler(async (req, res) => {
   if (existing) throw new ApiError(409, 'Already rated this order');
 
   const created = await Rating.create({ user: req.user._id, order, foodItem, rating, comment });
+
+  // A picked-up (delivered) order only becomes "completed" once the student rates it.
+  // That is when it shows up on the admin's Order Completed page, with this rating.
+  if (targetOrder.status === 'delivered') {
+    targetOrder.status = 'completed';
+    await targetOrder.save();
+
+    const { default: app } = await import('../app.js');
+    const io = app.get('io');
+    if (io) {
+      io.to(`order:${String(targetOrder._id)}`).emit('order:status', {
+        orderId: String(targetOrder._id),
+        status: 'completed',
+        tokenNumber: targetOrder.tokenNumber,
+      });
+      // Let staff pages (e.g. Order Completed) pick up the new rated order live.
+      io.to('queue:counter').emit('rating:submitted', {
+        orderId: String(targetOrder._id),
+      });
+      const { broadcastQueueUpdate } = await import('../services/queueService.js');
+      await broadcastQueueUpdate(io);
+    }
+  }
 
   if (foodItem) {
     const foodItemId = mongoose.isValidObjectId(foodItem)
@@ -65,6 +89,16 @@ export const getMyRatings = asyncHandler(async (req, res) => {
     .populate('order', 'tokenNumber total createdAt')
     .populate('foodItem', 'name')
     .select('order foodItem rating comment createdAt')
+    .sort({ createdAt: -1 });
+  success(res, ratings);
+});
+
+// All ratings, for staff — used to show stars + comments on completed orders.
+export const getAllRatings = asyncHandler(async (req, res) => {
+  const ratings = await Rating.find()
+    .populate('order', 'tokenNumber total createdAt')
+    .populate('user', 'name email role')
+    .select('order user rating comment createdAt')
     .sort({ createdAt: -1 });
   success(res, ratings);
 });

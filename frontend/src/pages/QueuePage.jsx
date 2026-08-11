@@ -8,6 +8,7 @@ function QueuePage() {
   const [queue, setQueue] = useState([]);
   const [now, setNow] = useState(Date.now());
   const [lastUpdate, setLastUpdate] = useState(null);
+  const [myOrderToken, setMyOrderToken] = useState(null);
   const { state } = useLocation();
   const { user } = useAuth();
   const prevKeysRef = useRef([]);
@@ -15,7 +16,31 @@ function QueuePage() {
   const countdownEndRef = useRef(null);
 
   const myToken = state?.confirmation?.token;
-  const myTokenNumber = myToken?.tokenNumber;
+  const myTokenNumber = myToken?.tokenNumber ?? myOrderToken;
+
+  // Entries whose pickup-slot timer has hit zero leave the queue immediately.
+  const activeQueue = queue.filter(
+    (e) => !(e.slotDeadline && Number(e.slotDeadline) <= now)
+  );
+
+  // Show the countdown card for every user's own active order — not just the
+  // one who just placed it. Find the most recent in-progress order's token.
+  useEffect(() => {
+    if (!user) return;
+    api
+      .get('/orders/mine')
+      .then((res) => {
+        const list = res.data.data || [];
+        const active = list.find((o) =>
+          ['placed', 'confirmed', 'preparing', 'ready'].includes(o.status)
+        );
+        if (active?.tokenNumber) setMyOrderToken(active.tokenNumber);
+        if (active?.estimatedWaitMin && !countdownEndRef.current) {
+          countdownEndRef.current = Date.now() + active.estimatedWaitMin * 60000;
+        }
+      })
+      .catch(() => {});
+  }, [user]);
 
   useEffect(() => {
     const socket = getSocket();
@@ -54,9 +79,9 @@ function QueuePage() {
     };
   }, [user]);
 
-  const serving = queue.length > 0 ? queue[0] : null;
-  const myIndex = queue.findIndex((e) => String(e.tokenNumber) === String(myTokenNumber));
-  const myEntry = myIndex >= 0 ? queue[myIndex] : null;
+  const serving = activeQueue.length > 0 ? activeQueue[0] : null;
+  const myIndex = activeQueue.findIndex((e) => String(e.tokenNumber) === String(myTokenNumber));
+  const myEntry = myIndex >= 0 ? activeQueue[myIndex] : null;
   const myWaitMin = myEntry?.estimatedWaitMin ?? myToken?.estimatedWaitMin ?? 0;
   const aheadOfMe = myIndex > 0 ? myIndex : 0;
 
@@ -66,10 +91,6 @@ function QueuePage() {
   const remainingSec = countdownEndRef.current
     ? Math.max(0, Math.round((countdownEndRef.current - now) / 1000))
     : myWaitMin * 60;
-  const mm = String(Math.floor(remainingSec / 60)).padStart(2, '0');
-  const ss = String(remainingSec % 60).padStart(2, '0');
-
-  const maxWait = Math.max(1, ...queue.map((e) => e.estimatedWaitMin || 0));
 
   useEffect(() => {
     const keys = queue.map((e) => String(e.orderId));
@@ -124,7 +145,42 @@ function QueuePage() {
     return `${diff}s ago`;
   };
 
-  const isMyTurn = myIndex === 0 && queue.length > 0;
+  const fmtCountdown = (sec) => {
+    const s = Math.max(0, Math.floor(sec));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const r = s % 60;
+    if (h > 0) {
+      return `${h}:${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
+    }
+    return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
+  };
+
+  const entryCountdown = (entry) => {
+    const deadline = entry.slotDeadline ? Number(entry.slotDeadline) : null;
+    const startAt = entry.joinedAt ? new Date(entry.joinedAt).getTime() : Date.now();
+    const remainingSec =
+      deadline != null ? Math.max(0, Math.round((deadline - now) / 1000)) : null;
+    const totalSec =
+      deadline != null
+        ? Math.max(1, Math.round((deadline - startAt) / 1000))
+        : (entry.estimatedWaitMin || 0) * 60;
+    const elapsedPct =
+      totalSec > 0 && remainingSec != null
+        ? Math.min(100, Math.max(0, (1 - remainingSec / totalSec) * 100))
+        : 0;
+    return {
+      label: remainingSec != null ? fmtCountdown(remainingSec) : '—',
+      done: remainingSec === 0,
+      elapsedPct,
+    };
+  };
+
+  const myCd = myEntry ? entryCountdown(myEntry) : null;
+  const cardCountdown = myCd ? (myCd.done ? 'Now' : myCd.label) : fmtCountdown(remainingSec);
+  const cardBarPct = myCd ? Math.round(myCd.elapsedPct) : 0;
+
+  const isMyTurn = myIndex === 0 && activeQueue.length > 0;
 
   return (
     <div className="queue-page">
@@ -147,7 +203,7 @@ function QueuePage() {
         </div>
       </div>
 
-      {state?.confirmation && (
+      {(state?.confirmation || (myTokenNumber && myEntry)) && (
         <div className={`q-confirmation${isMyTurn ? ' q-confirmation-ready' : ''}`}>
           <div className="q-confirmation-glow" aria-hidden="true" />
           <div className="q-confirmation-top">
@@ -165,7 +221,7 @@ function QueuePage() {
           <div className="q-confirmation-stats">
             <div className="q-stat q-stat-countdown">
               <span className="q-stat-value">
-                {isMyTurn ? 'Now' : `${mm}:${ss}`}
+                {isMyTurn ? 'Now' : cardCountdown}
               </span>
               <span className="q-stat-label">{isMyTurn ? 'being served' : 'est. countdown'}</span>
             </div>
@@ -182,7 +238,7 @@ function QueuePage() {
             <div className="q-countdown-bar" aria-hidden="true">
               <span
                 className="q-countdown-bar-fill"
-                style={{ animationDuration: `${Math.max(2, Math.min(myWaitMin || 3, 30))}s` }}
+                style={{ width: `${Math.max(2, Math.min(cardBarPct, 100))}%`, animation: 'none' }}
               />
             </div>
           )}
@@ -212,7 +268,12 @@ function QueuePage() {
               <span className="queue-ticker-token">#{serving.tokenNumber}</span>
             </span>
             {serving.estimatedWaitMin != null && (
-              <span className="queue-ticker-wait">~{serving.estimatedWaitMin} min</span>
+              <span className="queue-ticker-wait">
+                {(() => {
+                  const cd = entryCountdown(serving);
+                  return cd.done ? 'Being served now' : `🕒 ${cd.label} left`;
+                })()}
+              </span>
             )}
           </>
         ) : (
@@ -220,7 +281,7 @@ function QueuePage() {
         )}
       </div>
 
-      {queue.length === 0 ? (
+      {activeQueue.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">
             <span>🎫</span>
@@ -238,16 +299,17 @@ function QueuePage() {
       ) : (
         <div className="queue-board-wrap">
           <div className="queue-board-title">
-            <strong>{queue.length} order{queue.length === 1 ? '' : 's'} in queue</strong>
+            <strong>{activeQueue.length} order{activeQueue.length === 1 ? '' : 's'} in queue</strong>
             <span className="queue-board-updated">
               updated <em>{lastUpdatedLabel()}</em>
             </span>
           </div>
           <ol className="queue-board">
-            {queue.map((entry, idx) => {
+            {activeQueue.map((entry, idx) => {
               const st = entryState(idx);
               const isMine = String(entry.tokenNumber) === String(myTokenNumber);
-              const pct = Math.max(6, Math.round((entry.estimatedWaitMin / maxWait) * 100));
+              const cd = entryCountdown(entry);
+              const barPct = Math.max(4, Math.round(cd.elapsedPct));
               return (
                 <li
                   key={entry.orderId}
@@ -265,13 +327,32 @@ function QueuePage() {
                       {isMine && <span className="queue-mine-tag">YOU</span>}
                       {st.label}
                     </span>
+                    {entry.items?.length > 0 && (
+                      <span className="queue-entry-items">
+                        {entry.items.slice(0, 4).map((it, i) => (
+                          <span key={i} className="queue-item-thumb" title={`${it.qty}× ${it.name}`}>
+                            {it.image ? (
+                              <img src={it.image} alt={it.name} loading="lazy" />
+                            ) : (
+                              <span className="queue-item-emoji">🍽️</span>
+                            )}
+                          </span>
+                        ))}
+                        {entry.items.length > 4 && (
+                          <span className="queue-item-more">+{entry.items.length - 4}</span>
+                        )}
+                      </span>
+                    )}
                   </div>
-                  <span className="queue-wait">
-                    {idx === 0 ? <span className="queue-wait-spinner" /> : null}
-                    ~{entry.estimatedWaitMin ?? '—'} min
+                  <span className={`queue-wait${cd.done ? ' is-done' : ''}`}>
+                    <span className="queue-wait-clock">🕒</span>
+                    <span className="queue-wait-countdown">
+                      {cd.done ? 'Now' : cd.label}
+                    </span>
+                    <span className="queue-wait-unit">left</span>
                   </span>
-                  <span className={`queue-entry-bar${idx === 0 ? ' is-serving-bar' : ''}`}>
-                    <span style={{ width: `${pct}%` }} />
+                  <span className="queue-entry-bar">
+                    <span style={{ width: `${barPct}%` }} />
                   </span>
                 </li>
               );

@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../api/client.js';
 import { getSocket } from '../socket.js';
+import ItemThumb from './ItemThumb.jsx';
+import RatingStars from './RatingStars.jsx';
 
-const STATUS_FLOW = ['placed', 'confirmed', 'preparing', 'ready', 'completed'];
+const STATUS_FLOW = ['placed', 'confirmed', 'preparing', 'ready', 'delivered', 'completed'];
 const NEXT_ACTION = {
   placed: 'Confirm',
   confirmed: 'Start preparing',
@@ -12,19 +14,56 @@ const NEXT_ACTION = {
 
 function AdminOrderList({ status, emptyText, emptyTitle = 'Nothing here yet', emptyIcon = '🛎️', emptyHint, allowActions = true, allowCancel = false, readyOnly = false }) {
   const [orders, setOrders] = useState([]);
+  const [ratings, setRatings] = useState({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(null);
   const ordersRef = useRef([]);
 
-  useEffect(() => {
-    const socket = getSocket();
-    const url = status ? `/orders?status=${status}` : '/orders';
+  const url = status ? `/orders?status=${status}` : '/orders';
+
+  const loadList = useCallback(() => {
     api
       .get(url)
       .then((res) => {
         let list = res.data.data || [];
         if (readyOnly) {
-          list = list.filter((o) => !['ready', 'completed', 'cancelled'].includes(o.status));
+          list = list.filter((o) => !['ready', 'delivered', 'completed', 'cancelled'].includes(o.status));
+        }
+        ordersRef.current = list;
+        setOrders(ordersRef.current);
+        list.forEach((o) => getSocket().emit('join:order', o._id));
+      })
+      .catch(() => {});
+  }, [url, readyOnly]);
+
+  const loadRatings = useCallback(() => {
+    if (status !== 'completed') return;
+    api
+      .get('/ratings')
+      .then((res) => {
+        const map = {};
+        (res.data.data || []).forEach((r) => {
+          const orderId = r.order && typeof r.order === 'object' ? r.order._id : r.order;
+          if (orderId) map[String(orderId)] = r;
+        });
+        setRatings(map);
+      })
+      .catch(() => {});
+  }, [status]);
+
+  // Ratings for completed orders (stars + comment shown in the admin list).
+  useEffect(() => {
+    loadRatings();
+  }, [status]);
+
+  useEffect(() => {
+    const socket = getSocket();
+    api
+      .get(url)
+      .then((res) => {
+        let list = res.data.data || [];
+        if (readyOnly) {
+          list = list.filter((o) => !['ready', 'delivered', 'completed', 'cancelled'].includes(o.status));
         }
         ordersRef.current = list;
         setOrders(ordersRef.current);
@@ -38,7 +77,7 @@ function AdminOrderList({ status, emptyText, emptyTitle = 'Nothing here yet', em
         String(o._id) === String(orderId) ? { ...o, status: newStatus } : o
       );
       if (readyOnly) {
-        list = list.filter((o) => !['ready', 'completed', 'cancelled'].includes(o.status));
+        list = list.filter((o) => !['ready', 'delivered', 'completed', 'cancelled'].includes(o.status));
       }
       if (status && status !== 'all') {
         list = list.filter((o) => o.status === status);
@@ -46,9 +85,21 @@ function AdminOrderList({ status, emptyText, emptyTitle = 'Nothing here yet', em
       ordersRef.current = list;
       setOrders(ordersRef.current);
     };
+
+    // A student rating a picked-up order completes it — pull the fresh list.
+    const onRatingSubmitted = () => {
+      if (status !== 'completed') return;
+      loadList();
+      loadRatings();
+    };
+
     socket.on('order:status', onOrderStatus);
-    return () => socket.off('order:status', onOrderStatus);
-  }, [status, readyOnly]);
+    socket.on('rating:submitted', onRatingSubmitted);
+    return () => {
+      socket.off('order:status', onOrderStatus);
+      socket.off('rating:submitted', onRatingSubmitted);
+    };
+  }, [status, readyOnly, url, loadList, loadRatings]);
 
   const updateStatus = async (orderId, nextStatus) => {
     setBusy(orderId);
@@ -58,7 +109,7 @@ function AdminOrderList({ status, emptyText, emptyTitle = 'Nothing here yet', em
         String(o._id) === String(orderId) ? { ...o, status: data.data.status } : o
       );
       if (readyOnly) {
-        list = list.filter((o) => !['ready', 'completed', 'cancelled'].includes(o.status));
+        list = list.filter((o) => !['ready', 'delivered', 'completed', 'cancelled'].includes(o.status));
       }
       if (status && status !== 'all') {
         list = list.filter((o) => o.status === status);
@@ -112,11 +163,15 @@ function AdminOrderList({ status, emptyText, emptyTitle = 'Nothing here yet', em
               </span>
             </div>
 
-            <ul className="order-items">
+            <ul className="order-items lt-items-grid">
               {o.items.map((it, idx) => (
                 <li key={idx}>
-                  <span>{it.qty}× {it.name}</span>
-                  <span>₹{(it.price * it.qty).toFixed(2)}</span>
+                  <ItemThumb image={it.foodItem?.image} name={it.name} />
+                  <span className="lt-item-name">
+                    <strong>{it.name}</strong>
+                    <small>{it.qty}×</small>
+                  </span>
+                  <span className="lt-item-price">₹{(it.price * it.qty).toFixed(2)}</span>
                 </li>
               ))}
             </ul>
@@ -130,6 +185,26 @@ function AdminOrderList({ status, emptyText, emptyTitle = 'Nothing here yet', em
                 <span className="order-slot" title="Pickup slot">🕒 {o.pickupSlot}</span>
               )}
             </div>
+
+            {status === 'completed' && (() => {
+              const rt = ratings[String(o._id)];
+              return rt ? (
+                <div className="admin-order-rating">
+                  <div className="admin-order-rating-head">
+                    <span className="admin-order-rating-label">Student rating</span>
+                    <span className="admin-order-rating-score">
+                      <RatingStars value={rt.rating} size="sm" />
+                      <strong>{rt.rating}.0</strong>
+                    </span>
+                  </div>
+                  {rt.comment && <p className="admin-order-rating-comment">“{rt.comment}”</p>}
+                </div>
+              ) : (
+                <div className="admin-order-rating admin-order-rating-missing">
+                  <span>No rating given for this order.</span>
+                </div>
+              );
+            })()}
 
             {(readyOnly && next) || ((allowActions && next) || (allowCancel && o.status !== 'completed')) ? (
               <div className="admin-actions">

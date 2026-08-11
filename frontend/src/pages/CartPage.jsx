@@ -15,11 +15,19 @@ function CartPage() {
   const fmtTime = (d) =>
     d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
 
-  const initialSlotPreset = location.state?.pickupSlot || 'asap';
+  const toAmPm = (t) => {
+    if (!t) return '';
+    const [h, m] = t.split(':').map(Number);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return t;
+    const mer = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${h12}:${String(m).padStart(2, '0')} ${mer}`;
+  };
+
+  const initialSlotPreset = location.state?.pickupSlot || '30';
 
   const formatPresetSlot = (preset) => {
     if (!preset) return '';
-    if (preset === 'asap') return 'Quick pickup (ASAP)';
     const mins = parseInt(preset, 10);
     if (!Number.isFinite(mins) || mins <= 0) return '';
     const now = new Date();
@@ -27,8 +35,15 @@ function CartPage() {
     return `Within ${mins} min (${fmtTime(now)}–${fmtTime(to)})`;
   };
 
-  const initialSlotConfirmed = Boolean(location.state?.pickupSlot);
-  const initialConfirmedSlot = formatPresetSlot(initialSlotPreset) || location.state?.pickupSlotLabel || '';
+  const initialSlotConfirmed = Boolean(location.state?.pickupSlot) && initialSlotPreset !== 'custom';
+  const initialConfirmedSlot = initialSlotConfirmed
+    ? formatPresetSlot(initialSlotPreset) || location.state?.pickupSlotLabel || ''
+    : '';
+
+  const initialSlotAt = (() => {
+    const mins = parseInt(initialSlotPreset, 10);
+    return Number.isFinite(mins) && mins > 0 ? new Date() : null;
+  })();
 
   const [cart, setCart] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -40,26 +55,38 @@ function CartPage() {
   const [customTo, setCustomTo] = useState('');
   const [slotConfirmed, setSlotConfirmed] = useState(initialSlotConfirmed);
   const [confirmedSlot, setConfirmedSlot] = useState(initialConfirmedSlot);
+  const [slotAt, setSlotAt] = useState(initialSlotAt);
   const [showModal, setShowModal] = useState(false);
 
   const presetOptions = [
-    { value: 'asap', label: 'Quick pickup (ASAP)' },
     { value: '30', label: 'Within 30 min' },
     { value: '60', label: 'Within 1 hour' },
     { value: '90', label: 'Within 1.5 hours' },
+    { value: 'custom', label: 'Custom time slot' },
   ];
 
   const getPickupSlot = () => {
     if (slotPreset === 'custom') {
       if (!customFrom || !customTo) return '';
       if (customFrom >= customTo) return '';
-      return `Custom pickup ${customFrom}–${customTo}`;
+      return `Custom pickup ${toAmPm(customFrom)}–${toAmPm(customTo)}`;
     }
-    if (slotPreset === 'asap') return 'Quick pickup (ASAP)';
     const mins = parseInt(slotPreset, 10);
+    if (!Number.isFinite(mins) || mins <= 0) return 'Within 30 min';
     const now = new Date();
     const to = new Date(now.getTime() + mins * 60000);
     return `Within ${mins} min (${fmtTime(now)}–${fmtTime(to)})`;
+  };
+
+  const getPickupSlotAt = () => {
+    const now = new Date();
+    if (slotPreset === 'custom') {
+      if (!customFrom || !customTo) return null;
+      const [h, m] = customFrom.split(':').map(Number);
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0, 0);
+    }
+    const mins = parseInt(slotPreset, 10);
+    return Number.isFinite(mins) && mins > 0 ? now : null;
   };
 
   const slotPreview = getPickupSlot();
@@ -101,6 +128,7 @@ function CartPage() {
       return;
     }
     setConfirmedSlot(slot);
+    setSlotAt(getPickupSlotAt());
     setSlotConfirmed(true);
   };
 
@@ -110,7 +138,11 @@ function CartPage() {
     setPlacing(true);
     try {
       const paymentMethod = e.target.payment.value;
-      const { data } = await api.post('/orders', { paymentMethod, pickupSlot: confirmedSlot });
+      const { data } = await api.post('/orders', {
+        paymentMethod,
+        pickupSlot: confirmedSlot,
+        pickupSlotAt: slotAt ? slotAt.toISOString() : undefined,
+      });
       refreshCart();
       setCart({ items: [], subtotal: 0, tax: 0, total: 0 });
       setPaid({ confirmation: data.data, method: paymentMethod });

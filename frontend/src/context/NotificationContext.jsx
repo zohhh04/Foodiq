@@ -100,14 +100,14 @@ export function NotificationProvider({ children }) {
       {toast && (() => {
         const data = toast.data || {};
         const inferredStatus = data.status || (/placed/i.test(toast.title || '') ? 'placed' : '');
-        const status = ['placed', 'preparing', 'ready', 'completed'].includes(inferredStatus)
+        const status = ['placed', 'preparing', 'ready', 'delivered', 'completed'].includes(inferredStatus)
           ? inferredStatus
           : 'order';
         const orderId = data.orderId;
         const tokenNumber = data.tokenNumber || (toast.title?.match(/#(\d+)/)?.[1] || '');
         const items = data.items || [];
         const steps = ['Placed', 'Preparing', 'Ready', 'Picked up'];
-        const stepIndex = { placed: 1, preparing: 2, ready: 3, completed: 4 }[status] || 0;
+        const stepIndex = { placed: 1, preparing: 2, ready: 3, delivered: 4, completed: 4 }[status] || 0;
         const methodLabel =
           data.paymentMethod === 'upi' ? 'UPI' :
           data.paymentMethod === 'card' ? 'Card' :
@@ -117,7 +117,7 @@ export function NotificationProvider({ children }) {
         return (
           <div className={`notify-toast notify-toast-${status}`} role="status">
             <span className="notify-toast-shine" aria-hidden="true" />
-            {status === 'completed' && (
+            {['delivered', 'completed'].includes(status) && (
               <div className="notify-confetti" aria-hidden="true">
                 <span /><span /><span /><span /><span /><span /><span /><span />
                 <span /><span /><span /><span />
@@ -126,14 +126,16 @@ export function NotificationProvider({ children }) {
 
             <div className="notify-toast-head">
               <span className="notify-toast-icon">
-                {status === 'completed' ? '🎉' : status === 'ready' ? '🛎️' : '🔔'}
+                {status === 'completed' ? '🎉' : status === 'delivered' ? '🛍️' : status === 'ready' ? '🛎️' : '🔔'}
               </span>
               <span className="notify-toast-title">
                 {status === 'ready'
                   ? 'Order ready for pickup!'
-                  : status === 'completed'
-                    ? 'Order delivered — enjoy!'
-                    : (toast.title || 'Order update')}
+                  : status === 'delivered'
+                    ? 'Order picked up — how was it?'
+                    : status === 'completed'
+                      ? 'Order complete — thanks for rating!'
+                      : (toast.title || 'Order update')}
               </span>
               <button className="notify-toast-close" onClick={dismissToast} aria-label="Dismiss">×</button>
             </div>
@@ -154,13 +156,25 @@ export function NotificationProvider({ children }) {
               <div className="notify-hero notify-hero-done">
                 <span className="notify-hero-emoji">🎉</span>
                 <div className="notify-hero-text">
-                  <span className="notify-hero-eyebrow">Order picked up</span>
-                  <strong>Enjoy your meal!</strong>
+                  <span className="notify-hero-eyebrow">Order complete</span>
+                  <strong>Thanks for rating!</strong>
                 </div>
               </div>
             )}
 
-            {stepIndex > 0 && status !== 'completed' && (
+            {status === 'delivered' && (
+              <div className="notify-hero notify-hero-ready">
+                <span className="notify-hero-emoji">🛍️</span>
+                <div className="notify-hero-text">
+                  <span className="notify-hero-eyebrow">Order picked up</span>
+                  <strong>Enjoy your meal!</strong>
+                  <p>Rate your experience — it helps the kitchen cook better.</p>
+                </div>
+                <span className="notify-hero-ping" aria-hidden="true"><i>↗</i></span>
+              </div>
+            )}
+
+            {stepIndex > 0 && !['delivered', 'completed'].includes(status) && (
               <div className="notify-steps" aria-hidden="true">
                 {steps.map((label, i) => (
                   <span
@@ -174,11 +188,11 @@ export function NotificationProvider({ children }) {
               </div>
             )}
 
-            {toast.body && status !== 'ready' && status !== 'completed' && (
+            {toast.body && !['ready', 'delivered', 'completed'].includes(status) && (
               <p className="notify-toast-body">{toast.body}</p>
             )}
 
-            {items.length > 0 && status !== 'completed' && (
+            {items.length > 0 && !['delivered', 'completed'].includes(status) && (
               <ul className="notify-toast-items">
                 {items.map((it, idx) => (
                   <li key={idx}>
@@ -194,7 +208,7 @@ export function NotificationProvider({ children }) {
               {data.total != null && <span className="notify-toast-total">₹{data.total}</span>}
             </div>
 
-            {status === 'completed' && orderId && (
+            {['delivered', 'completed'].includes(status) && orderId && (
               <div className="notify-toast-rate">
                 <span className="notify-toast-rate-text">Enjoyed it? Rate this order</span>
                 <Link
@@ -218,7 +232,7 @@ export function NotificationProvider({ children }) {
                   Track my token <span>→</span>
                 </Link>
               )}
-              {status === 'completed' && (
+              {['delivered', 'completed'].includes(status) && (
                 <Link to="/orders" className="notify-toast-cta" onClick={confirm}>
                   View my orders <span>→</span>
                 </Link>

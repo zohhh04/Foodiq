@@ -3,15 +3,16 @@ import { Link } from 'react-router-dom';
 import api from '../api/client.js';
 import { getSocket } from '../socket.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import ItemThumb from '../components/ItemThumb.jsx';
 
 const STEP_DEFS = [
   { key: 'placed', label: 'Order Received', icon: '📥' },
   { key: 'preparing', label: 'Preparing', icon: '👨‍🍳' },
   { key: 'ready', label: 'Ready for Pickup', icon: '🛎️' },
-  { key: 'completed', label: 'Completed', icon: '🎉' },
+  { key: 'completed', label: 'Picked Up', icon: '🛍️' },
 ];
 
-const STATUS_STEP = { placed: 0, confirmed: 0, preparing: 1, ready: 2, completed: 3 };
+const STATUS_STEP = { placed: 0, confirmed: 0, preparing: 1, ready: 2, delivered: 3, completed: 3 };
 
 const PAY_LABEL = { upi: 'UPI', card: 'Card', cash: 'Cash' };
 
@@ -27,7 +28,7 @@ function LiveTrackingPage() {
       .get('/orders/mine')
       .then((res) => {
         const list = res.data.data || [];
-        activeRef.current = list.find((o) => !['completed', 'cancelled'].includes(o.status));
+        activeRef.current = list.find((o) => !['delivered', 'completed', 'cancelled'].includes(o.status));
         setOrders(list);
       })
       .catch(() => {})
@@ -66,6 +67,15 @@ function LiveTrackingPage() {
 
   const stepIdx = STATUS_STEP[active?.status] ?? -1;
   const statusLabel = (active?.status || 'placed').toUpperCase();
+  const placedTime = active?.createdAt
+    ? new Date(active.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    : '—';
+  const queueLabel = active?.queuePosition ? `#${active.queuePosition}` : '—';
+  const waitLabel = active?.estimatedWaitMin
+    ? `~${active.estimatedWaitMin} min`
+    : active?.status === 'ready'
+      ? 'Ready now'
+      : '—';
 
   return (
     <div>
@@ -134,6 +144,37 @@ function LiveTrackingPage() {
             <span className={`status-badge status-${active.status}`}>{active.status}</span>
           </div>
 
+          <div className="lt-track-stats">
+            <div className="lt-track-stat">
+              <span className="lt-track-stat-icon">🧾</span>
+              <div>
+                <strong>{active.items?.length || 0}</strong>
+                <span>Items</span>
+              </div>
+            </div>
+            <div className="lt-track-stat">
+              <span className="lt-track-stat-icon">{active.paymentMethod === 'cash' ? '💵' : '💳'}</span>
+              <div>
+                <strong>{PAY_LABEL[active.paymentMethod] || active.paymentMethod}</strong>
+                <span>Payment</span>
+              </div>
+            </div>
+            <div className="lt-track-stat">
+              <span className="lt-track-stat-icon">💰</span>
+              <div>
+                <strong>₹{active.total}</strong>
+                <span>Total</span>
+              </div>
+            </div>
+            <div className="lt-track-stat">
+              <span className="lt-track-stat-icon">🕒</span>
+              <div>
+                <strong>{active.pickupSlot || '—'}</strong>
+                <span>Pickup slot</span>
+              </div>
+            </div>
+          </div>
+
           <div className="lt-steps-wrap">
             <ol className="lt-steps">
               {STEP_DEFS.map((s, i) => {
@@ -165,10 +206,12 @@ function LiveTrackingPage() {
               <ul className="order-items lt-items-grid">
                 {(active.items || []).map((it, idx) => (
                   <li key={idx}>
-                    <span>
-                      {it.qty}× {it.name}
+                    <ItemThumb image={it.foodItem?.image} name={it.name} />
+                    <span className="lt-item-name">
+                      <strong>{it.name}</strong>
+                      <small>{it.qty}×</small>
                     </span>
-                    <span>₹{(it.price * it.qty).toFixed(2)}</span>
+                    <span className="lt-item-price">₹{(it.price * it.qty).toFixed(2)}</span>
                   </li>
                 ))}
               </ul>
@@ -187,19 +230,43 @@ function LiveTrackingPage() {
                   </span>
                 </div>
 
-                {active.pickupSlot && (
-                  <div className="lt-track-slot">
-                    <span className="lt-track-slot-icon">🕒</span>
-                    <div>
-                      <span className="lt-track-slot-label">Booked Slot</span>
-                      <span className="lt-track-slot-value">{active.pickupSlot}</span>
-                    </div>
-                  </div>
-                )}
-
                 {active.status === 'ready' && (
                   <p className="order-ready-note">Ready for pickup at the counter! 🛎️</p>
                 )}
+
+                <div className="lt-summary-bill">
+                  <div className="lt-summary-bill-head">
+                    <strong>Bill details</strong>
+                    <span>{active.items?.length || 0} item{(active.items?.length || 0) > 1 ? 's' : ''}</span>
+                  </div>
+                  <div className="lt-summary-bill-row">
+                    <span>Subtotal</span>
+                    <strong>₹{(active.subtotal || 0).toFixed(2)}</strong>
+                  </div>
+                  <div className="lt-summary-bill-row">
+                    <span>Tax (5%)</span>
+                    <strong>₹{(active.tax || 0).toFixed(2)}</strong>
+                  </div>
+                  <div className="lt-summary-bill-row lt-summary-bill-total">
+                    <span>Total</span>
+                    <strong>₹{(active.total || 0).toFixed(2)}</strong>
+                  </div>
+                </div>
+
+                <div className="lt-summary-info">
+                  <div className="lt-summary-info-cell">
+                    <span>Queue</span>
+                    <strong>{queueLabel}</strong>
+                  </div>
+                  <div className="lt-summary-info-cell">
+                    <span>Est. wait</span>
+                    <strong>{waitLabel}</strong>
+                  </div>
+                  <div className="lt-summary-info-cell">
+                    <span>Placed</span>
+                    <strong>{placedTime}</strong>
+                  </div>
+                </div>
 
                 <div className="lt-track-foot">
                   <Link to="/orders" className="order-foot-link">View all orders →</Link>

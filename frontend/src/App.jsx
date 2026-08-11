@@ -6,6 +6,7 @@ import { CartProvider, useCart } from './context/CartContext.jsx';
 import { ThemeProvider } from './context/ThemeContext.jsx';
 import HomePage from './pages/HomePage.jsx';
 import MenuPage from './pages/MenuPage.jsx';
+import RecommendationsPage from './pages/RecommendationsPage.jsx';
 import CartPage from './pages/CartPage.jsx';
 import QueuePage from './pages/QueuePage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
@@ -77,6 +78,7 @@ function Navbar() {
           ) : (
             <>
               <NavLink to="/menu" onClick={closeMenu}>Menu</NavLink>
+              <NavLink to="/recommendations" onClick={closeMenu}>AI Picks</NavLink>
               <NavLink to="/cart" className="cart-link" onClick={closeMenu}>
                 Cart
                 {cartCount > 0 && <span className="nav-badge">{cartCount}</span>}
@@ -124,6 +126,14 @@ function AppRoutes() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/menu" element={<MenuPage />} />
+          <Route
+            path="/recommendations"
+            element={
+              <ProtectedRoute>
+                <RecommendationsPage />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/cart" element={<CartPage />} />
           <Route path="/queue" element={<QueuePage />} />
           <Route path="/login" element={<LoginPage />} />
