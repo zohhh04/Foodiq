@@ -4,9 +4,14 @@ let socket = null;
 
 const createSocket = () => {
   const token = localStorage.getItem('token') || undefined;
-  return io('http://localhost:5001', {
+  // In production (Vercel Services, single domain) connect to the same
+  // origin so /api + socket.io both hit the backend service via rewrites.
+  // Set VITE_SOCKET_URL only if the backend lives on a separate domain.
+  const url = import.meta.env.VITE_SOCKET_URL || undefined;
+  return io(url, {
     withCredentials: true,
     auth: { token },
+    transports: ['websocket'],
   });
 };
 
