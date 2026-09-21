@@ -10,3 +10,4 @@ __pycache__/
 *.pyc
 model_store/
 ai/data/
+*.zip
