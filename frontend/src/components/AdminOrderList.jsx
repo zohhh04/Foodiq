@@ -93,10 +93,23 @@ function AdminOrderList({ status, emptyText, emptyTitle = 'Nothing here yet', em
       loadRatings();
     };
 
+    // A new order was just placed — prepend it live, no reload needed.
+    const onOrderCreated = (newOrder) => {
+      if (!newOrder || !newOrder._id) return;
+      if (readyOnly && ['ready', 'delivered', 'completed', 'cancelled'].includes(newOrder.status)) return;
+      if (status && status !== 'all' && newOrder.status !== status) return;
+      if (ordersRef.current.some((o) => String(o._id) === String(newOrder._id))) return;
+      socket.emit('join:order', newOrder._id);
+      ordersRef.current = [newOrder, ...ordersRef.current];
+      setOrders(ordersRef.current);
+    };
+
     socket.on('order:status', onOrderStatus);
+    socket.on('order:created', onOrderCreated);
     socket.on('rating:submitted', onRatingSubmitted);
     return () => {
       socket.off('order:status', onOrderStatus);
+      socket.off('order:created', onOrderCreated);
       socket.off('rating:submitted', onRatingSubmitted);
     };
   }, [status, readyOnly, url, loadList, loadRatings]);

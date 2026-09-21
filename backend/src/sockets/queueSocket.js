@@ -27,6 +27,12 @@ export const setupSocket = (io) => {
       socket.join(`user:${socket.data.userId}`);
     }
 
+    // Staff/admins join the admin room so new orders can be pushed live
+    // to the admin Orders page without a reload.
+    if (socket.data.role === 'admin' || socket.data.role === 'staff') {
+      socket.join('admin:orders');
+    }
+
     // Watch a specific order's live status.
     socket.on('join:order', (orderId) => {
       socket.join(`order:${orderId}`);

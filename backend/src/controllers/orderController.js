@@ -41,6 +41,19 @@ const finalizeOrder = async (orderId, userId) => {
       status: 'placed',
       tokenNumber: token.tokenNumber,
     });
+    // Push the full new order to admins so the admin Orders page updates
+    // live without a reload. Populate user + item images like getAllOrders.
+    try {
+      const populated = await Order.findById(order._id)
+        .populate('user', 'name email phone role')
+        .populate('items.foodItem', 'name image')
+        .lean();
+      if (populated) {
+        io.to('admin:orders').emit('order:created', populated);
+      }
+    } catch {
+      /* live push is best-effort; order is already finalized */
+    }
     const { broadcastQueueUpdate } = await import('../services/queueService.js');
     await broadcastQueueUpdate(io);
   }
